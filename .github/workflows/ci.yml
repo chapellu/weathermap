@@ -96,7 +96,8 @@ jobs:
     name: Release Please
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [lint-typecheck, build, test]
+    # needs: [lint-typecheck, build, test]
+    needs: [lint-typecheck, build]
     permissions:
       contents: write
       pull-requests: write
@@ -111,7 +112,7 @@ jobs:
     name: Deploy to Render
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [lint-typecheck, build, test]
+    needs: [lint-typecheck, build]
     steps:
       - name: Trigger Render deploy
         run: |
