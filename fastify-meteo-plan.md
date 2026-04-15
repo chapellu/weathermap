@@ -26,10 +26,10 @@ Le fichier `package.json` doit inclure un `engines` pour l'enforcer :
 ```json
 {
   "engines": {
-    "node": ">=20",
+    "node": ">=22",
     "pnpm": ">=9"
   },
-  "packageManager": "pnpm@9.x"
+  "packageManager": "pnpm@9.15.4"
 }
 ```
 
@@ -66,6 +66,7 @@ engine-strict=true
 ```
 
 Règles :
+
 - **Pas de `any`** — utiliser `unknown` puis narrowing explicite
 - **Pas d'assertion `!`** — gérer le cas null/undefined explicitement
 - **Pas de `as Type`** sauf à la frontière (parsing JSON, réponse externe) — préférer Zod
@@ -210,11 +211,15 @@ const WeatherQuerySchema = z.object({
 });
 
 // Réponse externe (OWM) — schema minimal, ne parser que ce qu'on utilise
-const GeocodingResponseSchema = z.array(z.object({
-  lat: z.number(),
-  lon: z.number(),
-  country: z.string().length(2),
-})).min(1);
+const GeocodingResponseSchema = z
+  .array(
+    z.object({
+      lat: z.number(),
+      lon: z.number(),
+      country: z.string().length(2),
+    }),
+  )
+  .min(1);
 ```
 
 ---
@@ -228,8 +233,10 @@ const GeocodingResponseSchema = z.array(z.object({
 'no-console': 'error',              // utiliser le logger Pino
 '@typescript-eslint/no-explicit-any': 'error',
 '@typescript-eslint/no-floating-promises': 'error',
-'@typescript-eslint/no-unused-vars': 'error',
+'@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }], // _reply, _done tolérés
 '@typescript-eslint/consistent-type-imports': 'error', // import type { Foo }
+// Fastify plugins doivent être async par contrat même sans await explicite
+'@typescript-eslint/require-await': 'off',
 ```
 
 #### Prettier (`.prettierrc`)
@@ -249,19 +256,23 @@ const GeocodingResponseSchema = z.array(z.object({
 ```json
 {
   "scripts": {
-    "dev":        "tsx watch src/index.ts",
-    "build":      "tsup src/index.ts --format cjs --dts",
-    "start":      "node dist/index.js",
-    "test":       "vitest run",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsup src/server.ts --format esm --dts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint":       "eslint src --max-warnings 0",
-    "lint:fix":   "eslint src --fix",
-    "format":     "prettier --write src",
+    "lint": "eslint src --max-warnings 0",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
     "format:check": "prettier --check src",
-    "typecheck":  "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate":  "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "lint-staged": {
+    "*.ts": ["eslint --fix", "prettier --write"],
+    "*.{json,yml,yaml,md}": ["prettier --write"]
   }
 }
 ```
@@ -417,6 +428,7 @@ describe('GET /weather', () => {
 #### Coverage
 
 Seuils minimum dans `vitest.config.ts` :
+
 ```typescript
 coverage: {
   thresholds: {
@@ -449,21 +461,21 @@ main        ← production, protégé, merge via PR uniquement
 
 ## Stack Technique
 
-| Couche | Choix | Justification |
-|---|---|---|
-| Runtime | TypeScript + Fastify | Léger, performant, plugin-based |
-| Weather API | OpenWeatherMap (clé API) | Geocoding + météo, une seule clé |
-| Auth IdP | Google OAuth2 | OIDC standard |
-| Utilisateurs | PostgreSQL (Render free) | Source de vérité pour role + plan |
-| Migrations DB | Drizzle ORM | Léger, type-safe, sans codegen lourd |
-| Cache | Redis (Render free, 25MB) | ~10k villes, TTL 10min |
-| Logging | Pino + logfmt | Natif Fastify, format structuré |
-| Métriques | fastify-metrics + Grafana Cloud | Hit/miss cache, latence par route |
-| Documentation | @fastify/swagger + @fastify/swagger-ui | Swagger UI intégré, test interactif |
-| Commits | Conventional Commits + commitlint + husky | Enforcement local + CI |
-| Versioning | Release Please | Trunk-based, Release PR, changelog auto |
-| PaaS | Render | Free tier app + Redis + Postgres |
-| CI | GitHub Actions | Lint, build, test, deploy, release |
+| Couche        | Choix                                     | Justification                           |
+| ------------- | ----------------------------------------- | --------------------------------------- |
+| Runtime       | TypeScript + Fastify                      | Léger, performant, plugin-based         |
+| Weather API   | OpenWeatherMap (clé API)                  | Geocoding + météo, une seule clé        |
+| Auth IdP      | Google OAuth2                             | OIDC standard                           |
+| Utilisateurs  | PostgreSQL (Render free)                  | Source de vérité pour role + plan       |
+| Migrations DB | Drizzle ORM                               | Léger, type-safe, sans codegen lourd    |
+| Cache         | Redis (Render free, 25MB)                 | ~10k villes, TTL 10min                  |
+| Logging       | Pino + logfmt                             | Natif Fastify, format structuré         |
+| Métriques     | fastify-metrics + Grafana Cloud           | Hit/miss cache, latence par route       |
+| Documentation | @fastify/swagger + @fastify/swagger-ui    | Swagger UI intégré, test interactif     |
+| Commits       | Conventional Commits + commitlint + husky | Enforcement local + CI                  |
+| Versioning    | Release Please                            | Trunk-based, Release PR, changelog auto |
+| PaaS          | Render                                    | Free tier app + Redis + Postgres        |
+| CI            | GitHub Actions                            | Lint, build, test, deploy, release      |
 
 > **Note Render free tier** : PostgreSQL free est supprimé après **90 jours d'inactivité**. Planifier une migration vers un plan payant ou un export régulier si le projet dure.
 
@@ -524,9 +536,11 @@ src/
       mock-openweather.ts # Fixture réponse OpenWeatherMap
   types/
     fastify.d.ts          # Augmentation req.user { email, role, plan }
-  index.ts
+  index.ts                # Factory exportée : buildApp() — importée par les tests
+  server.ts               # Point d'entrée : buildApp() + listen() — jamais importé par les tests
 .husky/
-  commit-msg              # Hook local commitlint
+  pre-commit              # lint-staged (eslint --fix + prettier --write sur les fichiers stagés)
+  commit-msg              # commitlint — vérifie le format conventional commit
 .commitlintrc.json        # Config conventional commits
 .release-please-config.json
 CHANGELOG.md              # Généré et maintenu par Release Please
@@ -539,6 +553,7 @@ CHANGELOG.md              # Généré et maintenu par Release Please
 ## APIs OpenWeatherMap
 
 ### 1. Geocoding — nom de ville → coordonnées
+
 ```
 GET http://api.openweathermap.org/geo/1.0/direct
     ?q={city},{country_code}&limit=1&appid={API_KEY}
@@ -547,12 +562,14 @@ Réponse utilisée : { lat, lon, country }
 ```
 
 ### 2. Current Weather — météo actuelle
+
 ```
 GET https://api.openweathermap.org/data/2.5/weather
     ?lat={lat}&lon={lon}&units=metric&lang=fr&appid={API_KEY}
 ```
 
 ### 3. Forecast — prévisions 5 jours (plan pro uniquement)
+
 ```
 GET https://api.openweathermap.org/data/2.5/forecast
     ?lat={lat}&lon={lon}&units=metric&lang=fr&appid={API_KEY}
@@ -564,14 +581,15 @@ GET https://api.openweathermap.org/data/2.5/forecast
 
 ### Deux niveaux de cache
 
-| Niveau | Clé | TTL | Usage |
-|---|---|---|---|
-| Geocoding | `geo:{city_normalized}` | 24h | `city → { lat, lon, country }` |
-| Météo actuelle | `weather:{lat2}:{lon2}` | 10min | Données météo |
-| Prévisions | `forecast:{lat2}:{lon2}` | 1h | Prévisions 5 jours |
-| dailyCount | `daily:{email}:{YYYY-MM-DD}` | jusqu'à minuit UTC | Compteur journalier |
+| Niveau         | Clé                          | TTL                | Usage                          |
+| -------------- | ---------------------------- | ------------------ | ------------------------------ |
+| Geocoding      | `geo:{city_normalized}`      | 24h                | `city → { lat, lon, country }` |
+| Météo actuelle | `weather:{lat2}:{lon2}`      | 10min              | Données météo                  |
+| Prévisions     | `forecast:{lat2}:{lon2}`     | 1h                 | Prévisions 5 jours             |
+| dailyCount     | `daily:{email}:{YYYY-MM-DD}` | jusqu'à minuit UTC | Compteur journalier            |
 
 > **Clé lat/lon** : lat et lon sont arrondis à **2 décimales** (~1km de précision) avant construction de la clé, pour éviter les miss dus à la précision flottante.
+>
 > ```ts
 > const lat2 = Math.round(lat * 100) / 100;
 > const lon2 = Math.round(lon * 100) / 100;
@@ -582,26 +600,29 @@ GET https://api.openweathermap.org/data/2.5/forecast
 
 ### Estimation Redis 25MB
 
-| Donnée | Volume estimé | Taille |
-|---|---|---|
-| Météo actuelle (~1KB × 5k villes actives) | 5k entrées | ~5MB |
-| Prévisions (~4KB × 1k villes pro) | 1k entrées | ~4MB |
-| Geocoding (~200B × 8k villes) | 8k entrées | ~1.6MB |
-| dailyCount (~50B × 1k users actifs) | 1k entrées | ~0.05MB |
-| **Total estimé** | | **~11MB** |
+| Donnée                                    | Volume estimé | Taille    |
+| ----------------------------------------- | ------------- | --------- |
+| Météo actuelle (~1KB × 5k villes actives) | 5k entrées    | ~5MB      |
+| Prévisions (~4KB × 1k villes pro)         | 1k entrées    | ~4MB      |
+| Geocoding (~200B × 8k villes)             | 8k entrées    | ~1.6MB    |
+| dailyCount (~50B × 1k users actifs)       | 1k entrées    | ~0.05MB   |
+| **Total estimé**                          |               | **~11MB** |
 
 Marge confortable. Si besoin, réduire le TTL prévisions (1h → 30min) ou activer `maxmemory-policy allkeys-lru` sur Redis.
 
 ### Métriques custom
+
 - `weather_cache_hit_total`
 - `weather_cache_miss_total`
 
 ### Header de réponse
+
 ```
 X-Cache-Status: HIT | MISS
 ```
 
 ### Logs logfmt
+
 ```
 level=info msg="weather request" city=Paris cache=hit  duration=2ms   user=user@gmail.com
 level=info msg="weather request" city=Lyon  cache=miss duration=187ms user=user@gmail.com
@@ -618,11 +639,53 @@ La réponse geocoding OWM inclut un champ `country` (code ISO 3166-1 alpha-2, ex
 ```ts
 // lib/geo.ts
 const EUROPEAN_COUNTRIES = new Set([
-  'AD','AL','AT','BA','BE','BG','BY','CH','CY','CZ',
-  'DE','DK','EE','ES','FI','FR','GB','GR','HR','HU',
-  'IE','IS','IT','LI','LT','LU','LV','MC','MD','ME',
-  'MK','MT','NL','NO','PL','PT','RO','RS','RU','SE',
-  'SI','SK','SM','TR','UA','VA','XK'
+  'AD',
+  'AL',
+  'AT',
+  'BA',
+  'BE',
+  'BG',
+  'BY',
+  'CH',
+  'CY',
+  'CZ',
+  'DE',
+  'DK',
+  'EE',
+  'ES',
+  'FI',
+  'FR',
+  'GB',
+  'GR',
+  'HR',
+  'HU',
+  'IE',
+  'IS',
+  'IT',
+  'LI',
+  'LT',
+  'LU',
+  'LV',
+  'MC',
+  'MD',
+  'ME',
+  'MK',
+  'MT',
+  'NL',
+  'NO',
+  'PL',
+  'PT',
+  'RO',
+  'RS',
+  'RU',
+  'SE',
+  'SI',
+  'SK',
+  'SM',
+  'TR',
+  'UA',
+  'VA',
+  'XK',
 ]);
 
 export const isEuropean = (countryCode: string): boolean =>
@@ -633,29 +696,29 @@ Le `countryCode` vient de la réponse geocoding, stocké dans le cache geocoding
 
 ### Tableau des règles
 
-| Action | Condition | Résultat |
-|---|---|---|
-| `weather:read:current` | tout utilisateur authentifié | ALLOW |
-| `weather:read:forecast` | `plan === 'pro'` ou `role === 'admin'` | ALLOW |
-| `weather:read:forecast` | `plan === 'free'` | DENY |
-| `weather:read` | ville Europe, plan free | ALLOW |
-| `weather:read` | ville hors Europe, `plan === 'free'` | DENY |
-| `weather:read` | `dailyCount < 10`, plan free | ALLOW |
-| `weather:read` | `dailyCount >= 10`, plan free | DENY |
-| `weather:cache:invalidate` | `role === 'admin'` | ALLOW |
-| `weather:cache:invalidate` | tout autre rôle | DENY |
-| `admin:manage:users` | `role === 'admin'` | ALLOW |
-| `admin:manage:users` | `role !== 'admin'` | DENY |
+| Action                     | Condition                              | Résultat |
+| -------------------------- | -------------------------------------- | -------- |
+| `weather:read:current`     | tout utilisateur authentifié           | ALLOW    |
+| `weather:read:forecast`    | `plan === 'pro'` ou `role === 'admin'` | ALLOW    |
+| `weather:read:forecast`    | `plan === 'free'`                      | DENY     |
+| `weather:read`             | ville Europe, plan free                | ALLOW    |
+| `weather:read`             | ville hors Europe, `plan === 'free'`   | DENY     |
+| `weather:read`             | `dailyCount < 10`, plan free           | ALLOW    |
+| `weather:read`             | `dailyCount >= 10`, plan free          | DENY     |
+| `weather:cache:invalidate` | `role === 'admin'`                     | ALLOW    |
+| `weather:cache:invalidate` | tout autre rôle                        | DENY     |
+| `admin:manage:users`       | `role === 'admin'`                     | ALLOW    |
+| `admin:manage:users`       | `role !== 'admin'`                     | DENY     |
 
 ### Garanties deny by default
 
-| Scénario | Résultat |
-|---|---|
-| Nouvel utilisateur sans rôle | DENY |
-| Nouvelle route sans policy | DENY |
-| Nouvelle action sans règle | DENY |
-| JWT manquant ou email inconnu en DB | DENY |
-| Erreur dans le moteur ABAC | DENY (fail closed) |
+| Scénario                            | Résultat           |
+| ----------------------------------- | ------------------ |
+| Nouvel utilisateur sans rôle        | DENY               |
+| Nouvelle route sans policy          | DENY               |
+| Nouvelle action sans règle          | DENY               |
+| JWT manquant ou email inconnu en DB | DENY               |
+| Erreur dans le moteur ABAC          | DENY (fail closed) |
 
 ---
 
@@ -732,10 +795,10 @@ GET /weather?city=Paris
 ```ts
 // src/db/schema.ts
 export const users = pgTable('users', {
-  id:    serial('id').primaryKey(),
+  id: serial('id').primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  role:  varchar('role',  { length: 50  }).notNull().default('viewer'),
-  plan:  varchar('plan',  { length: 50  }).notNull().default('free'),
+  role: varchar('role', { length: 50 }).notNull().default('viewer'),
+  plan: varchar('plan', { length: 50 }).notNull().default('free'),
 });
 ```
 
@@ -756,13 +819,13 @@ id | email              | role   | plan
 
 Accessibles à `role === 'admin'` uniquement (policy `admin:manage:users`). Comme les permissions sont résolues depuis la DB à chaque requête, tout changement est immédiatement effectif.
 
-| Méthode | Route | Description |
-|---|---|---|
-| GET | `/admin/users` | Lister tous les utilisateurs |
-| GET | `/admin/users/:id` | Détail d'un utilisateur |
-| PATCH | `/admin/users/:id/plan` | Changer le plan (free/pro) |
-| PATCH | `/admin/users/:id/role` | Changer le rôle (viewer/admin) |
-| DELETE | `/admin/users/:id` | Supprimer un utilisateur |
+| Méthode | Route                   | Description                    |
+| ------- | ----------------------- | ------------------------------ |
+| GET     | `/admin/users`          | Lister tous les utilisateurs   |
+| GET     | `/admin/users/:id`      | Détail d'un utilisateur        |
+| PATCH   | `/admin/users/:id/plan` | Changer le plan (free/pro)     |
+| PATCH   | `/admin/users/:id/role` | Changer le rôle (viewer/admin) |
+| DELETE  | `/admin/users/:id`      | Supprimer un utilisateur       |
 
 ### Workflow de test ABAC depuis Swagger UI
 
@@ -780,20 +843,20 @@ Accessibles à `role === 'admin'` uniquement (policy `admin:manage:users`). Comm
 
 ## Documentation Swagger
 
-| Endpoint | Auth | Description |
-|---|---|---|
-| GET `/healthz` | ❌ | Status de l'app |
-| GET `/auth/google` | ❌ | Redirect OAuth2 Google |
-| GET `/weather` | ✅ JWT | Météo actuelle |
-| GET `/weather/forecast` | ✅ JWT (pro) | Prévisions 5 jours |
-| POST `/weather/cache/invalidate` | ✅ JWT (admin) | Invalide le cache |
-| GET `/admin/users` | ✅ JWT (admin) | Liste des utilisateurs |
-| GET `/admin/users/:id` | ✅ JWT (admin) | Détail utilisateur |
-| PATCH `/admin/users/:id/plan` | ✅ JWT (admin) | Changer le plan |
-| PATCH `/admin/users/:id/role` | ✅ JWT (admin) | Changer le rôle |
-| DELETE `/admin/users/:id` | ✅ JWT (admin) | Supprimer utilisateur |
-| GET `/metrics` | ✅ Bearer statique | Métriques Prometheus |
-| GET `/docs` | ❌ | Swagger UI |
+| Endpoint                         | Auth               | Description            |
+| -------------------------------- | ------------------ | ---------------------- |
+| GET `/healthz`                   | ❌                 | Status de l'app        |
+| GET `/auth/google`               | ❌                 | Redirect OAuth2 Google |
+| GET `/weather`                   | ✅ JWT             | Météo actuelle         |
+| GET `/weather/forecast`          | ✅ JWT (pro)       | Prévisions 5 jours     |
+| POST `/weather/cache/invalidate` | ✅ JWT (admin)     | Invalide le cache      |
+| GET `/admin/users`               | ✅ JWT (admin)     | Liste des utilisateurs |
+| GET `/admin/users/:id`           | ✅ JWT (admin)     | Détail utilisateur     |
+| PATCH `/admin/users/:id/plan`    | ✅ JWT (admin)     | Changer le plan        |
+| PATCH `/admin/users/:id/role`    | ✅ JWT (admin)     | Changer le rôle        |
+| DELETE `/admin/users/:id`        | ✅ JWT (admin)     | Supprimer utilisateur  |
+| GET `/metrics`                   | ✅ Bearer statique | Métriques Prometheus   |
+| GET `/docs`                      | ❌                 | Swagger UI             |
 
 > **`/metrics`** : protégé par un Bearer token statique (`METRICS_TOKEN` env var) pour éviter l'exposition des données de topologie interne. Grafana Cloud est configuré avec ce token.
 
@@ -801,16 +864,16 @@ Accessibles à `role === 'admin'` uniquement (policy `admin:manage:users`). Comm
 
 ## Conventional Commits — Convention
 
-| Type | Effet sur la version | Usage |
-|---|---|---|
-| `feat:` | minor bump (1.x.0) | Nouvelle fonctionnalité |
-| `fix:` | patch bump (1.0.x) | Correction de bug |
-| `feat!:` ou `BREAKING CHANGE:` | major bump (x.0.0) | Changement breaking |
-| `chore:` | aucun | Maintenance, deps |
-| `docs:` | aucun | Documentation |
-| `test:` | aucun | Ajout/modification de tests |
-| `ci:` | aucun | Pipeline CI |
-| `refactor:` | aucun | Refactoring sans nouveau comportement |
+| Type                           | Effet sur la version | Usage                                 |
+| ------------------------------ | -------------------- | ------------------------------------- |
+| `feat:`                        | minor bump (1.x.0)   | Nouvelle fonctionnalité               |
+| `fix:`                         | patch bump (1.0.x)   | Correction de bug                     |
+| `feat!:` ou `BREAKING CHANGE:` | major bump (x.0.0)   | Changement breaking                   |
+| `chore:`                       | aucun                | Maintenance, deps                     |
+| `docs:`                        | aucun                | Documentation                         |
+| `test:`                        | aucun                | Ajout/modification de tests           |
+| `ci:`                          | aucun                | Pipeline CI                           |
+| `refactor:`                    | aucun                | Refactoring sans nouveau comportement |
 
 ### Exemples concrets pour ce projet
 
@@ -856,108 +919,114 @@ Commits sur main
 
 ```typescript
 // Policies ABAC
-test('free user peut lire météo actuelle')
-test('free user bloqué sur les prévisions')
-test('free user bloqué après 10 requêtes/jour')
-test('free user bloqué sur ville hors Europe')
-test('pro user peut lire les prévisions')
-test('pro user peut lire ville hors Europe')
-test('admin peut invalider le cache')
-test('admin peut accéder aux routes /admin')
-test('viewer bloqué sur les routes /admin')
-test('rôle inconnu → DENY')
-test('attributs manquants → DENY')
+test('free user peut lire météo actuelle');
+test('free user bloqué sur les prévisions');
+test('free user bloqué après 10 requêtes/jour');
+test('free user bloqué sur ville hors Europe');
+test('pro user peut lire les prévisions');
+test('pro user peut lire ville hors Europe');
+test('admin peut invalider le cache');
+test('admin peut accéder aux routes /admin');
+test('viewer bloqué sur les routes /admin');
+test('rôle inconnu → DENY');
+test('attributs manquants → DENY');
 
 // Cache
-test('cache miss retourne null')
-test('cache hit retourne la valeur')
-test('TTL expiré retourne null')
-test('clé météo basée sur lat+lon arrondis à 2 décimales')
-test('clé geocoding basée sur city normalisée, pas lat/lon')
-test('dailyCount incrémenté par user')
-test('dailyCount expire à minuit UTC')
+test('cache miss retourne null');
+test('cache hit retourne la valeur');
+test('TTL expiré retourne null');
+test('clé météo basée sur lat+lon arrondis à 2 décimales');
+test('clé geocoding basée sur city normalisée, pas lat/lon');
+test('dailyCount incrémenté par user');
+test('dailyCount expire à minuit UTC');
 
 // Géographie
-test('code "FR" → isEuropean true')
-test('code "US" → isEuropean false')
-test('code "TR" → isEuropean true')
-test('code inconnu → isEuropean false')
+test('code "FR" → isEuropean true');
+test('code "US" → isEuropean false');
+test('code "TR" → isEuropean true');
+test('code inconnu → isEuropean false');
 ```
 
 ### Niveau 2 — Intégration API
 
 ```typescript
 // Auth
-test('sans token → 401')
-test('token expiré → 401')
-test('token malformé → 401')
-test('email inconnu en DB → 401')
+test('sans token → 401');
+test('token expiré → 401');
+test('token malformé → 401');
+test('email inconnu en DB → 401');
 
 // Permissions ABAC — résolues depuis la DB
-test('viewer, météo actuelle, ville Europe → 200')
-test('viewer, prévisions → 403')
-test('viewer, ville hors Europe, plan free → 403')
-test('viewer, 11ème requête du jour → 403')
-test('pro, prévisions → 200')
-test('pro, ville hors Europe → 200')
-test('admin, toutes les actions → 200')
-test('viewer, route /admin → 403')
+test('viewer, météo actuelle, ville Europe → 200');
+test('viewer, prévisions → 403');
+test('viewer, ville hors Europe, plan free → 403');
+test('viewer, 11ème requête du jour → 403');
+test('pro, prévisions → 200');
+test('pro, ville hors Europe → 200');
+test('admin, toutes les actions → 200');
+test('viewer, route /admin → 403');
 
 // Changement de plan immédiatement effectif
-test('update plan free→pro, requête suivante débloque forecast')
-test('update plan pro→free, requête suivante bloque forecast')
+test('update plan free→pro, requête suivante débloque forecast');
+test('update plan pro→free, requête suivante bloque forecast');
 
 // Comportement métier
-test('ville inconnue → 404')
-test('paramètre city manquant → 400')
-test('OpenWeatherMap en erreur → 502')
+test('ville inconnue → 404');
+test('paramètre city manquant → 400');
+test('OpenWeatherMap en erreur → 502');
 
 // Cache deux niveaux
-test('première requête → geocoding miss + weather miss, 2 appels OWM')
-test('deuxième requête même ville → geocoding hit + weather hit, 0 appel OWM')
-test('cache météo expiré → geocoding hit + weather miss, 1 appel OWM')
-test('header X-Cache-Status présent dans la réponse')
+test('première requête → geocoding miss + weather miss, 2 appels OWM');
+test('deuxième requête même ville → geocoding hit + weather hit, 0 appel OWM');
+test('cache météo expiré → geocoding hit + weather miss, 1 appel OWM');
+test('header X-Cache-Status présent dans la réponse');
 
 // Admin
-test('GET /admin/users (admin) → liste les utilisateurs')
-test('GET /admin/users (viewer) → 403')
-test('PATCH /admin/users/:id/plan → mise à jour immédiate')
-test('PATCH /admin/users/:id/role → mise à jour immédiate')
-test('DELETE /admin/users/:id → supprime l\'utilisateur')
-test('admin invalide le cache → 200')
-test('viewer invalide le cache → 403')
+test('GET /admin/users (admin) → liste les utilisateurs');
+test('GET /admin/users (viewer) → 403');
+test('PATCH /admin/users/:id/plan → mise à jour immédiate');
+test('PATCH /admin/users/:id/role → mise à jour immédiate');
+test("DELETE /admin/users/:id → supprime l'utilisateur");
+test('admin invalide le cache → 200');
+test('viewer invalide le cache → 403');
 
 // Métriques
-test('GET /metrics sans token → 401')
-test('GET /metrics avec METRICS_TOKEN → 200, contient weather_cache_hit_total')
+test('GET /metrics sans token → 401');
+test('GET /metrics avec METRICS_TOKEN → 200, contient weather_cache_hit_total');
 ```
 
 ---
 
 ## CI — GitHub Actions
 
-| Événement | Lint | Commit check | Build | Tests | Release PR | Deploy |
-|---|---|---|---|---|---|---|
-| PR → main | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Push main | ✅ | ✅ | ✅ | ✅ | ✅ Release Please | ✅ prod |
-| Push develop | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ preview |
-| Merge Release PR | — | — | — | — | — | ✅ prod + tag |
+| Événement        | Lint | Commit check | Build | Tests | Release PR        | Deploy        |
+| ---------------- | ---- | ------------ | ----- | ----- | ----------------- | ------------- |
+| PR → main        | ✅   | ✅           | ✅    | ✅    | ❌                | ❌            |
+| Push main        | ✅   | ✅           | ✅    | ✅    | ✅ Release Please | ✅ prod       |
+| Push develop     | ✅   | ✅           | ✅    | ✅    | ❌                | ✅ preview    |
+| Merge Release PR | —    | —            | —     | —     | —                 | ✅ prod + tag |
 
 ### Jobs GitHub Actions
 
 ```yaml
+# Actions utilisées (versions courantes — à mettre à jour si nouvelle major)
+actions/checkout@v6
+pnpm/action-setup@v5          # version pnpm résolue depuis packageManager dans package.json
+actions/setup-node@v6         # node-version: 'lts/*'
+googleapis/release-please-action@v4
+
 # Job 1 — Lint & Type Check
 - tsc --noEmit
 - eslint
 - prettier --check
 
 # Job 2 — Commit lint (CI safety net)
-- commitlint --from origin/main
+- pnpm exec commitlint --from origin/main --to HEAD --verbose
 
 # Job 3 — Build
-- tsup
+- tsup src/server.ts --format esm --dts
 
-# Job 4 — Test
+# Job 4 — Test (activé à partir de la Phase 2)
 - vitest
 services:
   postgres:
@@ -988,10 +1057,21 @@ GITHUB_TOKEN              # Requis par Release Please pour créer la Release PR
 
 ---
 
-## Enforcement Local — Husky + commitlint
+## Enforcement Local — Husky + lint-staged + commitlint
 
 ```
-git commit -m "add forecast route"
+git commit -m "feat: add forecast route"
+        │
+        ▼
+   .husky/pre-commit
+        │
+        ▼
+   lint-staged — sur les fichiers stagés uniquement
+        ├─ *.ts              → eslint --fix  →  prettier --write
+        └─ *.{json,yml,yaml,md} → prettier --write
+        │
+        ├─ ✅ fichiers propres → continue
+        └─ ❌ erreur lint non auto-fixable → commit bloqué
         │
         ▼
    .husky/commit-msg
@@ -1009,11 +1089,11 @@ git commit -m "add forecast route"
 
 ## Déploiement Render
 
-| Service | Plan | Coût |
-|---|---|---|
-| Web Service (Node.js) | Free (512MB, 0.1 CPU) | 0€ |
-| PostgreSQL | Free (1GB, **expire après 90 jours**) | 0€ |
-| Redis | Free (25MB) | 0€ |
+| Service               | Plan                                  | Coût |
+| --------------------- | ------------------------------------- | ---- |
+| Web Service (Node.js) | Free (512MB, 0.1 CPU)                 | 0€   |
+| PostgreSQL            | Free (1GB, **expire après 90 jours**) | 0€   |
+| Redis                 | Free (25MB)                           | 0€   |
 
 ### Variables d'environnement Render
 
@@ -1044,12 +1124,12 @@ REDIS_URL
 - Logger Pino + logfmt
 - Route `/healthz` → `{ status: "ok" }`
 - `swagger.plugin.ts` — Swagger UI accessible sur `/docs`
-- Setup commitlint + husky (hook local)
+- Setup husky : `pre-commit` (lint-staged) + `commit-msg` (commitlint)
 - Setup Release Please (GitHub Action + config)
-- Pipeline CI : lint + commit check + build + deploy
+- Pipeline CI : lint + commit check + build + deploy (job test commenté jusqu'à Phase 2)
 - Connexion Render (Web Service uniquement)
 
-**Livrable** : une URL Render qui répond, `/docs` accessible, CI verte, commits conventionnels enforced, Release PR automatique dès le premier `feat:`.
+**Livrable** : une URL Render qui répond, `/docs` accessible, CI verte, commits conventionnels enforced, lint + format enforced localement, Release PR automatique dès le premier `feat:`.
 
 ---
 
