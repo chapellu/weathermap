@@ -32,7 +32,6 @@ const CurrentWeatherSchema = z.object({
     humidity: z.number(),
   }),
   wind: z.object({ speed: z.number() }),
-  name: z.string(),
 });
 
 export type CurrentWeather = z.infer<typeof CurrentWeatherSchema>;

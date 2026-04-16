@@ -12,6 +12,7 @@ import {
 import { loggerPlugin } from './plugins/logger.plugin.js';
 import { swaggerPlugin } from './plugins/swagger.plugin.js';
 import { weatherRoutes } from './routes/weather.js';
+import { closeCache } from './lib/cache.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf-8')) as {
@@ -38,6 +39,10 @@ export async function buildApp() {
   await fastify.register(loggerPlugin);
   await fastify.register(swaggerPlugin, { version });
   await fastify.register(weatherRoutes);
+
+  fastify.addHook('onClose', async () => {
+    await closeCache();
+  });
 
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
