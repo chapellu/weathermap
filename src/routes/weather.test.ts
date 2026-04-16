@@ -1,13 +1,23 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
+import { cacheGet, cacheSet } from '../lib/cache.js';
 
 vi.mock('../lib/env.js', () => ({
   env: { OPENWEATHER_API_KEY: 'test-api-key', NODE_ENV: 'test' },
 }));
 
+vi.mock('../lib/cache.js', () => ({
+  cacheGet: vi.fn().mockResolvedValue(null),
+  cacheSet: vi.fn().mockResolvedValue(undefined),
+  closeCache: vi.fn().mockResolvedValue(undefined),
+  CACHE_TTL_GEO: 86400,
+  CACHE_TTL_WEATHER: 600,
+}));
+
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks(); // reset call counts on vi.mock() mocks
+  vi.restoreAllMocks(); // restore spies (e.g. global.fetch)
 });
 
 const GEO_PARIS = [{ lat: 48.85, lon: 2.35, country: 'FR', name: 'Paris' }];
@@ -15,7 +25,6 @@ const WEATHER_PARIS = {
   weather: [{ description: 'clear sky' }],
   main: { temp: 20.5, feels_like: 19.0, humidity: 60 },
   wind: { speed: 5.2 },
-  name: 'Paris',
 };
 
 function mockFetch(...responses: Array<{ ok: boolean; status?: number; body?: unknown }>) {
@@ -62,8 +71,8 @@ describe('GET /weather', () => {
     });
   });
 
-  it('sets X-Cache-Status: MISS on a successful response', async () => {
-    // Given
+  it('sets X-Cache-Status: MISS when neither cache level is populated', async () => {
+    // Given — both cacheGet calls return null (default mock)
     mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
 
     // When
@@ -71,6 +80,22 @@ describe('GET /weather', () => {
 
     // Then
     expect(response.headers['x-cache-status']).toBe('MISS');
+  });
+
+  it('sets X-Cache-Status: HIT and skips OWM when weather is cached', async () => {
+    // Given — geo and weather both hit the cache
+    vi.mocked(cacheGet)
+      .mockResolvedValueOnce(GEO_PARIS[0]) // geo hit
+      .mockResolvedValueOnce(WEATHER_PARIS); // weather hit
+    const fetchSpy = vi.spyOn(global, 'fetch');
+
+    // When
+    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+
+    // Then
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['x-cache-status']).toBe('HIT');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('returns 400 when the city query param is missing', async () => {
@@ -101,5 +126,16 @@ describe('GET /weather', () => {
 
     // Then
     expect(response.statusCode).toBe(502);
+  });
+
+  it('stores geo and weather results in cache on a MISS', async () => {
+    // Given
+    mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
+
+    // When
+    await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+
+    // Then — two cacheSet calls: one for geo, one for weather
+    expect(vi.mocked(cacheSet)).toHaveBeenCalledTimes(2);
   });
 });

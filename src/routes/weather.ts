@@ -34,9 +34,9 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
     async (req, reply) => {
       const { city } = req.query;
       try {
-        const weather = await getWeather(city);
-        reply.header('X-Cache-Status', 'MISS');
-        return weather;
+        const { data, cacheStatus } = await getWeather(city);
+        reply.header('X-Cache-Status', cacheStatus);
+        return data;
       } catch (error) {
         if (error instanceof OwmCityNotFoundError) {
           throw fastify.httpErrors.notFound(error.message);
