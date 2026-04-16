@@ -9,9 +9,12 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
+import fastifyCookie from '@fastify/cookie';
 import { loggerPlugin } from './plugins/logger.plugin.js';
 import { swaggerPlugin } from './plugins/swagger.plugin.js';
+import { authPlugin } from './plugins/auth.plugin.js';
 import { weatherRoutes } from './routes/weather.js';
+import { authRoutes } from './routes/auth.js';
 import { closeCache } from './lib/cache.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +24,7 @@ const { version } = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.js
 
 export async function buildApp() {
   const fastify = Fastify({
+    trustProxy: true,
     logger: {
       transport:
         process.env['NODE_ENV'] !== 'production'
@@ -36,8 +40,11 @@ export async function buildApp() {
   fastify.setSerializerCompiler(serializerCompiler);
 
   await fastify.register(sensible);
+  await fastify.register(fastifyCookie);
   await fastify.register(loggerPlugin);
   await fastify.register(swaggerPlugin, { version });
+  await fastify.register(authPlugin);
+  await fastify.register(authRoutes);
   await fastify.register(weatherRoutes);
 
   fastify.addHook('onClose', async () => {

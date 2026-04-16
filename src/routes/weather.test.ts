@@ -2,9 +2,21 @@ import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
+import { generateTestToken, TEST_USER } from '../test/helpers/auth.helper.js';
+
+const { TEST_JWT_SECRET } = vi.hoisted(() => ({
+  TEST_JWT_SECRET: 'test-secret-that-is-at-least-32-chars-long!!',
+}));
 
 vi.mock('../lib/env.js', () => ({
-  env: { OPENWEATHER_API_KEY: 'test-api-key', NODE_ENV: 'test' },
+  env: {
+    OPENWEATHER_API_KEY: 'test-api-key',
+    NODE_ENV: 'test',
+    JWT_SECRET: TEST_JWT_SECRET,
+    DATABASE_URL: 'postgresql://test',
+    GOOGLE_CLIENT_ID: 'test-client-id',
+    GOOGLE_CLIENT_SECRET: 'test-client-secret',
+  },
 }));
 
 vi.mock('../lib/cache.js', () => ({
@@ -13,6 +25,18 @@ vi.mock('../lib/cache.js', () => ({
   closeCache: vi.fn().mockResolvedValue(undefined),
   CACHE_TTL_GEO: 86400,
   CACHE_TTL_WEATHER: 600,
+}));
+
+vi.mock('../db/client.js', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve([TEST_USER])),
+        })),
+      })),
+    })),
+  },
 }));
 
 afterEach(() => {
@@ -41,8 +65,11 @@ function mockFetch(...responses: Array<{ ok: boolean; status?: number; body?: un
 
 describe('GET /weather', () => {
   let app: FastifyInstance;
+  let authHeader: string;
 
   beforeAll(async () => {
+    const token = await generateTestToken();
+    authHeader = `Bearer ${token}`;
     app = await buildApp();
     await app.ready();
   });
@@ -56,7 +83,11 @@ describe('GET /weather', () => {
     mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
 
     // When
-    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/weather?city=Paris',
+      headers: { authorization: authHeader },
+    });
 
     // Then
     expect(response.statusCode).toBe(200);
@@ -76,7 +107,11 @@ describe('GET /weather', () => {
     mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
 
     // When
-    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/weather?city=Paris',
+      headers: { authorization: authHeader },
+    });
 
     // Then
     expect(response.headers['x-cache-status']).toBe('MISS');
@@ -90,7 +125,11 @@ describe('GET /weather', () => {
     const fetchSpy = vi.spyOn(global, 'fetch');
 
     // When
-    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/weather?city=Paris',
+      headers: { authorization: authHeader },
+    });
 
     // Then
     expect(response.statusCode).toBe(200);
@@ -111,7 +150,11 @@ describe('GET /weather', () => {
     mockFetch({ ok: true, body: [] });
 
     // When
-    const response = await app.inject({ method: 'GET', url: '/weather?city=Atlantis' });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/weather?city=Atlantis',
+      headers: { authorization: authHeader },
+    });
 
     // Then
     expect(response.statusCode).toBe(404);
@@ -122,7 +165,11 @@ describe('GET /weather', () => {
     mockFetch({ ok: false, status: 503 });
 
     // When
-    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/weather?city=Paris',
+      headers: { authorization: authHeader },
+    });
 
     // Then
     expect(response.statusCode).toBe(502);
@@ -133,7 +180,11 @@ describe('GET /weather', () => {
     mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
 
     // When
-    await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+    await app.inject({
+      method: 'GET',
+      url: '/weather?city=Paris',
+      headers: { authorization: authHeader },
+    });
 
     // Then — two cacheSet calls: one for geo, one for weather
     expect(vi.mocked(cacheSet)).toHaveBeenCalledTimes(2);

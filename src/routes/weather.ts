@@ -22,9 +22,11 @@ export const weatherRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.withTypeProvider<ZodTypeProvider>().get(
     '/weather',
     {
+      preHandler: [fastify.authenticate],
       schema: {
         description: 'Get current weather for a city',
         tags: ['Weather'],
+        security: [{ bearerAuth: [] }],
         querystring: WeatherQuerySchema,
         response: {
           200: WeatherResponseSchema,

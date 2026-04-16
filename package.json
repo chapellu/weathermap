@@ -35,15 +35,20 @@
     ]
   },
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/sensible": "^6.0.4",
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.5",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^5.8.5",
     "fastify-plugin": "^5.1.0",
     "fastify-type-provider-zod": "^6.1.0",
+    "google-auth-library": "^10.6.2",
     "ioredis": "^5.10.1",
+    "jose": "^6.2.2",
     "pino": "^10.3.1",
     "pino-logfmt": "^1.1.4",
+    "postgres": "^3.4.9",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -51,6 +56,7 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.6.0",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^10.2.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",

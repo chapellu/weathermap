@@ -1109,10 +1109,10 @@ REDIS_URL
 - ✅ Header `X-Cache-Status: MISS`
 - ✅ Schémas Zod sur la route → auto-documentés dans `/docs`
 - ✅ Tests d'intégration via `app.inject()` + mock `fetch`
-- ⬜ `lib/cache.ts` — abstraction Redis (deux niveaux : geocoding + météo)
-- ⬜ Clé geocoding : `geo:{city_normalized}`, TTL 24h
-- ⬜ Clé météo : `weather:{lat2}:{lon2}`, lat/lon arrondis à 2 décimales, TTL 10min
-- ⬜ `X-Cache-Status: HIT` quand cache touché
+- ✅ `lib/cache.ts` — abstraction Redis (deux niveaux : geocoding + météo)
+- ✅ Clé geocoding : `geo:{city_normalized}`, TTL 24h
+- ✅ Clé météo : `weather:{lat2}:{lon2}`, lat/lon arrondis à 2 décimales, TTL 10min
+- ✅ `X-Cache-Status: HIT` quand cache touché
 - ⬜ Connexion Redis sur Render
 
 **Livrable** : `GET /weather?city=Paris` testable depuis `/docs`, cache deux niveaux fonctionnel, version `1.0.0` via Release Please.
@@ -1123,14 +1123,16 @@ REDIS_URL
 
 **Objectif** : sécuriser l'app avec Google OAuth2 + PostgreSQL.
 
-- `plugins/auth.plugin.ts` — OAuth2 dance Google
-- `plugins/jwt.plugin.ts` — vérification JWT + lookup DB → `req.user { email, role, plan }`
-- Schema Drizzle + migration PostgreSQL (table `users`)
-- Upsert utilisateur au callback avec `role='viewer'`, `plan='free'` par défaut
-- Cookie httpOnly + secure
-- Bouton "Authorize" dans Swagger UI pour tester avec JWT (note : token expire en 1h)
-- Connexion PostgreSQL sur Render
-- Tests d'intégration auth
+- ✅ `plugins/auth.plugin.ts` — JWT sign + authenticate preHandler (cookie ou Bearer)
+- ✅ `routes/auth.ts` — `GET /auth/google` + `GET /auth/callback` (OAuth2 dance Google)
+- ✅ Schema Drizzle + migration PostgreSQL (table `users`)
+- ✅ Upsert utilisateur au callback avec `role='viewer'`, `plan='free'` par défaut
+- ✅ Cookie httpOnly + secure
+- ✅ Bouton "Authorize" dans Swagger UI pour tester avec JWT (note : token expire en 1h)
+- ✅ Tests weather mis à jour (mock DB + JWT de test)
+- ✅ `src/test/helpers/auth.helper.ts` — génère JWT de test
+- ⬜ Connexion PostgreSQL sur Render
+- ⬜ Tests d'intégration auth dédiés
 
 **Livrable** : impossible d'accéder à `/weather` sans être connecté, permissions résolues depuis la DB.
 
@@ -1143,10 +1145,8 @@ REDIS_URL
 - `plugins/metrics.plugin.ts` — fastify-metrics, route `/metrics` protégée par `METRICS_TOKEN`
 - Compteurs custom `weather_cache_hit_total` + `weather_cache_miss_total`
 - Enrichissement logs logfmt (`cache=hit|miss`, `user=`, `duration=`)
-- Dashboard Grafana Cloud (hit rate cache, latence, error rate)
-- UptimeRobot sur `/healthz` pour éviter le cold start Render
 
-**Livrable** : dashboard Grafana opérationnel, métriques cache visibles, `/metrics` non accessible sans token.
+**Livrable** : métriques cache visibles, `/metrics` non accessible sans token.
 
 ---
 
