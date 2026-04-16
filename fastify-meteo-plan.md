@@ -26,7 +26,7 @@ Le fichier `package.json` doit inclure un `engines` pour l'enforcer :
 ```json
 {
   "engines": {
-    "node": ">=22",
+    "node": ">=24",
     "pnpm": ">=9"
   },
   "packageManager": "pnpm@9.15.4"
@@ -49,8 +49,8 @@ engine-strict=true
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Node16",
-    "moduleResolution": "Node16",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -64,6 +64,8 @@ engine-strict=true
   }
 }
 ```
+
+> **Note** : `module: "Node16"` a été abandonné car `fastify` n'a pas de champ `exports` dans son `package.json`, ce qui rend les subpath imports comme `fastify/types/schema` impossibles avec la résolution stricte Node16. `moduleResolution: "Bundler"` est cohérent avec l'usage de tsup.
 
 Règles :
 
@@ -257,7 +259,7 @@ const GeocodingResponseSchema = z
 {
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsup src/server.ts --format esm --dts",
+    "build": "tsup src/server.ts --format esm",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -291,27 +293,71 @@ When   → l'action déclenchée (appel de fonction, requête HTTP)
 Then   → le résultat observable attendu (assertions)
 ```
 
-#### Structure d'un fichier de test — unitaire
+#### Niveau de test préféré — intégration via `app.inject()`
+
+Les tests s'écrivent au niveau de la route HTTP, pas au niveau des modules internes. `fetch` est mocké globalement pour simuler les appels OWM. La structure interne est un détail d'implémentation non gelé par les tests.
 
 ```typescript
-// weather.policy.test.ts
-import { describe, it, expect } from 'vitest';
-import { evaluateWeatherPolicy } from './weather.policy';
+// routes/weather.test.ts
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+import type { FastifyInstance } from 'fastify';
+import { buildApp } from '../index.js';
 
-describe('weatherPolicy', () => {
-  describe('weather:read:current', () => {
-    it('allows any authenticated viewer', () => {
-      // Given
-      const user = { email: 'user@example.com', role: 'viewer', plan: 'free' };
+vi.mock('../lib/env.js', () => ({
+  env: { OPENWEATHER_API_KEY: 'test-api-key', NODE_ENV: 'test' },
+}));
 
-      // When
-      const result = evaluateWeatherPolicy({ action: 'weather:read:current', user });
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
-      // Then
-      expect(result).toBe('allow');
-    });
+function mockFetch(...responses: Array<{ ok: boolean; status?: number; body?: unknown }>) {
+  const spy = vi.spyOn(global, 'fetch');
+  for (const r of responses) {
+    spy.mockResolvedValueOnce({
+      ok: r.ok,
+      status: r.status ?? 200,
+      json: () => Promise.resolve(r.body),
+    } as Response);
+  }
+  return spy;
+}
+
+describe('GET /weather', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildApp();
+    await app.ready();
+  });
+  afterAll(async () => {
+    await app.close();
   });
 
+  it('returns 200 with weather data for a valid city', async () => {
+    // Given
+    mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
+
+    // When
+    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+
+    // Then
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ city: 'Paris', temp: expect.any(Number) });
+  });
+});
+```
+
+Les tests unitaires purs restent pertinents pour la logique sans I/O, comme les policies ABAC et `isEuropean`.
+
+#### Structure d'un fichier de test — unitaire (logique pure)
+
+```typescript
+// policies/weather.policy.test.ts
+import { describe, it, expect } from 'vitest';
+import { evaluateWeatherPolicy } from './weather.policy.js';
+
+describe('weatherPolicy', () => {
   describe('weather:read:forecast', () => {
     it('denies a free plan user', () => {
       // Given
@@ -334,83 +380,6 @@ describe('weatherPolicy', () => {
       // Then
       expect(result).toBe('allow');
     });
-
-    it('allows an admin regardless of plan', () => {
-      // Given
-      const user = { email: 'admin@example.com', role: 'admin', plan: 'free' };
-
-      // When
-      const result = evaluateWeatherPolicy({ action: 'weather:read:forecast', user });
-
-      // Then
-      expect(result).toBe('allow');
-    });
-  });
-});
-```
-
-#### Structure d'un fichier de test — intégration API
-
-```typescript
-// weather.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
-import { buildApp } from '../index';
-import { createTestUser, resetDb } from '../test/helpers/db.helper';
-import { generateTestJwt } from '../test/helpers/auth.helper';
-import { mockOwmCurrentWeather } from '../test/helpers/mock-openweather';
-
-describe('GET /weather', () => {
-  beforeEach(async () => {
-    await resetDb();
-  });
-
-  it('returns current weather for a European city with a free plan user', async () => {
-    // Given
-    const user = await createTestUser({ role: 'viewer', plan: 'free' });
-    const token = generateTestJwt({ email: user.email });
-    const app = await buildApp();
-    mockOwmCurrentWeather({ city: 'Paris', country: 'FR' });
-
-    // When
-    const response = await app.inject({
-      method: 'GET',
-      url: '/weather?city=Paris',
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    // Then
-    expect(response.statusCode).toBe(200);
-    expect(response.headers['x-cache-status']).toBe('MISS');
-    expect(response.json()).toMatchObject({ city: 'Paris', temp: expect.any(Number) });
-  });
-
-  it('returns 403 when a free plan user requests a non-European city', async () => {
-    // Given
-    const user = await createTestUser({ role: 'viewer', plan: 'free' });
-    const token = generateTestJwt({ email: user.email });
-    const app = await buildApp();
-    mockOwmCurrentWeather({ city: 'New York', country: 'US' });
-
-    // When
-    const response = await app.inject({
-      method: 'GET',
-      url: '/weather?city=New York',
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    // Then
-    expect(response.statusCode).toBe(403);
-  });
-
-  it('returns 401 when no token is provided', async () => {
-    // Given
-    const app = await buildApp();
-
-    // When
-    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
-
-    // Then
-    expect(response.statusCode).toBe(401);
   });
 });
 ```
@@ -510,17 +479,15 @@ src/
     swagger.plugin.ts     # Swagger UI + OpenAPI spec
   routes/
     weather.ts            # GET /weather?city= et GET /weather/forecast
-    weather.test.ts       # Tests intégration API
+    weather.test.ts       # Tests intégration API (fetch mocké, inject Fastify)
     admin/
       users.ts            # Routes admin utilisateurs
       users.test.ts       # Tests intégration admin
     auth.ts               # /auth/google + /auth/callback
   lib/
     owm-client.ts         # Client OpenWeatherMap (geocoding + weather + forecast)
-    owm-client.test.ts    # Unitaire avec mock fetch
     weather.service.ts    # Orchestration : geocode → cache → meteo
     cache.ts              # Abstraction Redis (get/set/invalidate)
-    cache.test.ts         # Unitaire
     geo.ts                # Détection zone Europe (liste de country codes)
   policies/
     weather.policy.ts     # Règles ABAC météo
@@ -546,7 +513,9 @@ src/
 CHANGELOG.md              # Généré et maintenu par Release Please
 ```
 
-> **Naming** : `owm-client.ts` = client HTTP brut vers OpenWeatherMap. `weather.service.ts` = orchestration métier (geocode → cache → données). La distinction est intentionnelle pour isoler les responsabilités et faciliter le mock dans les tests.
+> **Naming** : `owm-client.ts` = client HTTP brut vers OpenWeatherMap. `weather.service.ts` = orchestration métier (geocode → cache → données). La distinction est intentionnelle pour isoler les responsabilités.
+>
+> **Stratégie de test** : les tests mockent `fetch` globalement et testent via `app.inject()` — la frontière I/O est HTTP, pas les modules internes. La structure interne (`owm-client`, `weather.service`) est un détail d'implémentation non gelé par les tests.
 
 ---
 
@@ -915,7 +884,7 @@ Commits sur main
 
 ## Tests
 
-### Niveau 1 — Unitaires
+### Niveau 1 — Unitaires (logique pure, sans I/O)
 
 ```typescript
 // Policies ABAC
@@ -931,13 +900,9 @@ test('viewer bloqué sur les routes /admin');
 test('rôle inconnu → DENY');
 test('attributs manquants → DENY');
 
-// Cache
-test('cache miss retourne null');
-test('cache hit retourne la valeur');
-test('TTL expiré retourne null');
+// Cache — clés et TTL
 test('clé météo basée sur lat+lon arrondis à 2 décimales');
-test('clé geocoding basée sur city normalisée, pas lat/lon');
-test('dailyCount incrémenté par user');
+test('clé geocoding basée sur city normalisée');
 test('dailyCount expire à minuit UTC');
 
 // Géographie
@@ -1137,16 +1102,18 @@ REDIS_URL
 
 **Objectif** : valider l'intégration OpenWeatherMap de bout en bout.
 
-- `lib/owm-client.ts` — Geocoding API + Current Weather API
-- `lib/cache.ts` — abstraction Redis (deux niveaux : geocoding + météo)
-- Clé geocoding : `geo:{city_normalized}`, TTL 24h
-- Clé météo : `weather:{lat2}:{lon2}`, lat/lon arrondis à 2 décimales, TTL 10min
-- `lib/weather.service.ts` — orchestration geocode → cache → meteo
-- Route `GET /weather?city=` — ouverte, pas d'auth encore
-- Header `X-Cache-Status: HIT | MISS`
-- Schémas Zod sur la route → auto-documentés dans `/docs`
-- Tests unitaires `owm-client.ts` + `cache.ts`
-- Connexion Redis sur Render
+- ✅ `lib/env.ts` — validation Zod des variables d'environnement au démarrage
+- ✅ `lib/owm-client.ts` — Geocoding API + Current Weather API
+- ✅ `lib/weather.service.ts` — orchestration geocode → meteo
+- ✅ Route `GET /weather?city=` — ouverte, pas d'auth encore
+- ✅ Header `X-Cache-Status: MISS`
+- ✅ Schémas Zod sur la route → auto-documentés dans `/docs`
+- ✅ Tests d'intégration via `app.inject()` + mock `fetch`
+- ⬜ `lib/cache.ts` — abstraction Redis (deux niveaux : geocoding + météo)
+- ⬜ Clé geocoding : `geo:{city_normalized}`, TTL 24h
+- ⬜ Clé météo : `weather:{lat2}:{lon2}`, lat/lon arrondis à 2 décimales, TTL 10min
+- ⬜ `X-Cache-Status: HIT` quand cache touché
+- ⬜ Connexion Redis sur Render
 
 **Livrable** : `GET /weather?city=Paris` testable depuis `/docs`, cache deux niveaux fonctionnel, version `1.0.0` via Release Please.
 
