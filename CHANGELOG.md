@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.5.0...weatherapp-v0.6.0) (2026-04-16)
+
+
+### Features
+
+* add authentication ([4373c84](https://github.com/chapellu/weathermap/commit/4373c8425764333104b06447ac7f78f74a95f297))
+* add authentication ([46c6353](https://github.com/chapellu/weathermap/commit/46c635322145aec25529032e5b2f27e78c0bb00f))
+
 ## [0.5.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.4.0...weatherapp-v0.5.0) (2026-04-16)
 
 
