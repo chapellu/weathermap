@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.3.0...weatherapp-v0.4.0) (2026-04-16)
+
+
+### Features
+
+* add weather endpoint ([b17e075](https://github.com/chapellu/weathermap/commit/b17e075ebce19da2cd9f387f9595f67f3f3f1fe0))
+
+
+### Bug Fixes
+
+* remove dts from build command ([8528172](https://github.com/chapellu/weathermap/commit/8528172b9fcfbc07b64d32a7130179a4f3dc7131))
+* swagger version is no longer hardcoded ([181c47b](https://github.com/chapellu/weathermap/commit/181c47b43876f281300d07170c2d7bf95edceb19))
+
 ## [0.3.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.2.0...weatherapp-v0.3.0) (2026-04-16)
 
 
