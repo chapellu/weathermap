@@ -24,7 +24,7 @@ export async function buildApp() {
   });
 
   await fastify.register(loggerPlugin);
-  await fastify.register(swaggerPlugin);
+  await fastify.register(swaggerPlugin, { version });
 
   fastify.get(
     '/version',
