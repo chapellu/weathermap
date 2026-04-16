@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.4.0...weatherapp-v0.5.0) (2026-04-16)
+
+
+### Features
+
+* add cache ([d167b15](https://github.com/chapellu/weathermap/commit/d167b15fef77d442ce41eb89f1ad721696c65fdb))
+* add cache ([2ddfb2e](https://github.com/chapellu/weathermap/commit/2ddfb2ee7c5f3e2247b6689e6d9779a3f900d1cb))
+
 ## [0.4.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.3.0...weatherapp-v0.4.0) (2026-04-16)
 
 
