@@ -4,7 +4,8 @@
   "service": "app",
   "workspaceFolder": "/workspace",
   "remoteEnv": {
-    "REDIS_URL": "redis://redis:6379"
+    "REDIS_URL": "redis://redis:6379",
+    "DATABASE_URL": "postgresql://weatherapp:weatherapp@postgres:5432/weatherapp"
   },
   "customizations": {
     "vscode": {
@@ -18,6 +19,6 @@
       }
     }
   },
-  "postCreateCommand": "corepack enable && pnpm install",
+  "postCreateCommand": "corepack enable && pnpm install && pnpm db:migrate",
   "forwardPorts": [3000]
 }
