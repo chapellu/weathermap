@@ -1,9 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
 import Fastify from 'fastify';
+import sensible from '@fastify/sensible';
+import {
+  serializerCompiler,
+  validatorCompiler,
+  type ZodTypeProvider,
+} from 'fastify-type-provider-zod';
 import { loggerPlugin } from './plugins/logger.plugin.js';
 import { swaggerPlugin } from './plugins/swagger.plugin.js';
+import { weatherRoutes } from './routes/weather.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf-8')) as {
@@ -23,49 +31,42 @@ export async function buildApp() {
     },
   });
 
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+
+  await fastify.register(sensible);
   await fastify.register(loggerPlugin);
   await fastify.register(swaggerPlugin, { version });
+  await fastify.register(weatherRoutes);
 
-  fastify.get(
+  const app = fastify.withTypeProvider<ZodTypeProvider>();
+
+  app.get(
     '/version',
     {
       schema: {
         description: 'Returns the deployed application version',
         tags: ['System'],
         response: {
-          200: {
-            type: 'object',
-            properties: {
-              version: { type: 'string', example: '1.0.0' },
-            },
-          },
+          200: z.object({ version: z.string() }),
         },
       },
     },
-    () => {
-      return { version };
-    },
+    () => ({ version }),
   );
 
-  fastify.get(
+  app.get(
     '/healthz',
     {
       schema: {
         description: 'Health check endpoint',
         tags: ['System'],
         response: {
-          200: {
-            type: 'object',
-            properties: {
-              status: { type: 'string', example: 'ok' },
-            },
-          },
+          200: z.object({ status: z.string() }),
         },
       },
     },
-    () => {
-      return { status: 'ok' };
-    },
+    () => ({ status: 'ok' }),
   );
 
   return fastify;
