@@ -73,31 +73,38 @@ jobs:
       - name: Build
         run: pnpm build
 
-  # test:
-  #   name: Test
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v6
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
 
-  #     - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v5
 
-  #     - uses: actions/setup-node@v6
-  #       with:
-  #         node-version: 'lts/*'
-  #         cache: 'pnpm'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
 
-  #     - name: Install dependencies
-  #       run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-  #     - name: Run tests
-  #       run: pnpm test
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
 
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    # needs: [lint-typecheck, build, test]
-    needs: [lint-typecheck, build]
+    needs: [lint-typecheck, build, test]
     permissions:
       contents: write
       pull-requests: write

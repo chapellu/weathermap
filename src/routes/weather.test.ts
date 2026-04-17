@@ -3,37 +3,38 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { mockRedis } from '#mocks/ioredis.js';
 import { buildApp } from '@/index.js';
 import { generateTestToken } from '@/test/helpers/auth.helper.js';
+import { setupDbSelectUser } from '@/test/helpers/mocks.js';
 
 vi.mock('@/lib/env.js');
 vi.mock('ioredis');
 
-const { mockDb } = vi.hoisted(() => {
-  const authUser = { id: 1, email: 'test@example.com', role: 'viewer', plan: 'free' };
-  return {
-    mockDb: {
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([authUser])),
-          })),
-        })),
-      })),
-    },
-  };
-});
+const { mockDb } = vi.hoisted(() => ({
+  mockDb: { select: vi.fn(), update: vi.fn(), delete: vi.fn() },
+}));
 
 vi.mock('@/db/client.js', () => ({ db: mockDb }));
 
-afterEach(() => {
-  vi.clearAllMocks();
-  vi.restoreAllMocks();
-});
+const VIEWER_USER = { id: 1, email: 'viewer@example.com', role: 'viewer', plan: 'free' };
+const PRO_USER = { id: 2, email: 'pro@example.com', role: 'viewer', plan: 'pro' };
+const ADMIN_USER = { id: 3, email: 'admin@example.com', role: 'admin', plan: 'pro' };
 
 const GEO_PARIS = [{ lat: 48.85, lon: 2.35, country: 'FR', name: 'Paris' }];
+const GEO_NEW_YORK = [{ lat: 40.71, lon: -74.01, country: 'US', name: 'New York' }];
 const WEATHER_PARIS = {
   weather: [{ description: 'clear sky' }],
   main: { temp: 20.5, feels_like: 19.0, humidity: 60 },
   wind: { speed: 5.2 },
+};
+const FORECAST_PARIS = {
+  city: { name: 'Paris', country: 'FR' },
+  list: [
+    {
+      dt_txt: '2024-01-01 12:00:00',
+      main: { temp: 20.5, feels_like: 19.0, humidity: 60 },
+      weather: [{ description: 'clear sky' }],
+      wind: { speed: 5.2 },
+    },
+  ],
 };
 
 function mockFetch(...responses: Array<{ ok: boolean; status?: number; body?: unknown }>) {
@@ -48,13 +49,21 @@ function mockFetch(...responses: Array<{ ok: boolean; status?: number; body?: un
   return spy;
 }
 
-describe('GET /weather', () => {
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
+
+describe('Weather routes', () => {
   let app: FastifyInstance;
-  let authHeader: string;
+  let viewerHeader: string;
+  let proHeader: string;
+  let adminHeader: string;
 
   beforeAll(async () => {
-    const token = await generateTestToken();
-    authHeader = `Bearer ${token}`;
+    viewerHeader = `Bearer ${await generateTestToken(VIEWER_USER.email)}`;
+    proHeader = `Bearer ${await generateTestToken(PRO_USER.email)}`;
+    adminHeader = `Bearer ${await generateTestToken(ADMIN_USER.email)}`;
     app = await buildApp();
     await app.ready();
   });
@@ -63,116 +72,373 @@ describe('GET /weather', () => {
     await app.close();
   });
 
-  it('returns 200 with the weather data for a valid city', async () => {
-    // Given
-    mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
+  describe('GET /weather', () => {
+    it('returns 200 with weather data for a valid city', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
 
-    // When
-    const response = await app.inject({
-      method: 'GET',
-      url: '/weather?city=Paris',
-      headers: { authorization: authHeader },
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        city: 'Paris',
+        country: 'FR',
+        temp: 20.5,
+        feels_like: 19.0,
+        humidity: 60,
+        wind_speed: 5.2,
+        description: 'clear sky',
+      });
     });
 
-    // Then
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      city: 'Paris',
-      country: 'FR',
-      temp: 20.5,
-      feels_like: 19.0,
-      humidity: 60,
-      wind_speed: 5.2,
-      description: 'clear sky',
+    it('sets X-Cache-Status: MISS when cache is empty', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.headers['x-cache-status']).toBe('MISS');
+    });
+
+    it('sets X-Cache-Status: HIT and skips OWM when weather is cached', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockRedis.get
+        .mockResolvedValueOnce(JSON.stringify(GEO_PARIS[0])) // geo hit
+        .mockResolvedValueOnce(null) // daily count = 0
+        .mockResolvedValueOnce(JSON.stringify(WEATHER_PARIS)); // weather hit
+      const fetchSpy = vi.spyOn(global, 'fetch');
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['x-cache-status']).toBe('HIT');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('sets X-RateLimit headers for free plan users', async () => {
+      // Given — geo cached, daily count = 5, incr → 6, remaining = 4
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockRedis.get
+        .mockResolvedValueOnce(JSON.stringify(GEO_PARIS[0])) // geo hit
+        .mockResolvedValueOnce('5'); // daily count = 5
+      mockRedis.incr.mockResolvedValueOnce(6);
+      mockFetch({ ok: true, body: WEATHER_PARIS }); // only weather fetch needed
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['x-ratelimit-limit']).toBe('10');
+      expect(response.headers['x-ratelimit-remaining']).toBe('4');
+    });
+
+    it('omits X-RateLimit-Remaining for pro plan users', async () => {
+      // Given
+      setupDbSelectUser(mockDb, PRO_USER);
+      mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: proHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['x-ratelimit-remaining']).toBeUndefined();
+    });
+
+    it('returns 400 when the city query param is missing', async () => {
+      // When
+      const response = await app.inject({ method: 'GET', url: '/weather' });
+
+      // Then
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('returns 401 without token', async () => {
+      const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('returns 403 when city is outside Europe for free plan', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockFetch({ ok: true, body: GEO_NEW_YORK });
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=New York',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('returns 403 when daily limit is exceeded', async () => {
+      // Given — geo cached, daily count already at limit
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockRedis.get
+        .mockResolvedValueOnce(JSON.stringify(GEO_PARIS[0])) // geo hit
+        .mockResolvedValueOnce('10'); // count = DAILY_REQUEST_LIMIT
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('returns 404 when the city is not found', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockFetch({ ok: true, body: [] });
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Atlantis',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns 502 when the OWM API returns an error', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockFetch({ ok: false, status: 503 });
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(502);
+    });
+
+    it('stores geo and weather in cache on a MISS', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+      mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
+
+      // When
+      await app.inject({
+        method: 'GET',
+        url: '/weather?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then — two SET calls: geo and weather
+      expect(mockRedis.set).toHaveBeenCalledTimes(2);
     });
   });
 
-  it('sets X-Cache-Status: MISS when neither cache level is populated', async () => {
-    // Given — both cacheGet calls return null (default mock)
-    mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
+  describe('GET /weather/forecast', () => {
+    it('returns 200 with forecast for pro user (MISS)', async () => {
+      // Given
+      setupDbSelectUser(mockDb, PRO_USER);
+      mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: FORECAST_PARIS });
 
-    // When
-    const response = await app.inject({
-      method: 'GET',
-      url: '/weather?city=Paris',
-      headers: { authorization: authHeader },
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather/forecast?city=Paris',
+        headers: { authorization: proHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        city: 'Paris',
+        country: 'FR',
+        list: [expect.objectContaining({ description: 'clear sky' })],
+      });
+      expect(response.headers['x-cache-status']).toBe('MISS');
     });
 
-    // Then
-    expect(response.headers['x-cache-status']).toBe('MISS');
-  });
+    it('returns 200 with forecast for admin user', async () => {
+      // Given
+      setupDbSelectUser(mockDb, ADMIN_USER);
+      mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: FORECAST_PARIS });
 
-  it('sets X-Cache-Status: HIT and skips OWM when weather is cached', async () => {
-    // Given — geo and weather both hit the cache; daily count check sits between the two gets
-    mockRedis.get
-      .mockResolvedValueOnce(JSON.stringify(GEO_PARIS[0])) // geo hit
-      .mockResolvedValueOnce(null) // daily:...: → 0 (count check)
-      .mockResolvedValueOnce(JSON.stringify(WEATHER_PARIS)); // weather hit
-    const fetchSpy = vi.spyOn(global, 'fetch');
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather/forecast?city=Paris',
+        headers: { authorization: adminHeader },
+      });
 
-    // When
-    const response = await app.inject({
-      method: 'GET',
-      url: '/weather?city=Paris',
-      headers: { authorization: authHeader },
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['x-cache-status']).toBe('MISS');
     });
 
-    // Then
-    expect(response.statusCode).toBe(200);
-    expect(response.headers['x-cache-status']).toBe('HIT');
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
+    it('sets X-Cache-Status: HIT when forecast is cached', async () => {
+      // Given
+      setupDbSelectUser(mockDb, PRO_USER);
+      mockRedis.get
+        .mockResolvedValueOnce(JSON.stringify(GEO_PARIS[0])) // geo hit
+        .mockResolvedValueOnce(JSON.stringify(FORECAST_PARIS)); // forecast hit
+      const fetchSpy = vi.spyOn(global, 'fetch');
 
-  it('returns 400 when the city query param is missing', async () => {
-    // When
-    const response = await app.inject({ method: 'GET', url: '/weather' });
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather/forecast?city=Paris',
+        headers: { authorization: proHeader },
+      });
 
-    // Then
-    expect(response.statusCode).toBe(400);
-  });
-
-  it('returns 404 when the city is not found', async () => {
-    // Given
-    mockFetch({ ok: true, body: [] });
-
-    // When
-    const response = await app.inject({
-      method: 'GET',
-      url: '/weather?city=Atlantis',
-      headers: { authorization: authHeader },
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['x-cache-status']).toBe('HIT');
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    // Then
-    expect(response.statusCode).toBe(404);
-  });
+    it('returns 403 for free plan viewer', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
 
-  it('returns 502 when the OWM API returns an error', async () => {
-    // Given
-    mockFetch({ ok: false, status: 503 });
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather/forecast?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
 
-    // When
-    const response = await app.inject({
-      method: 'GET',
-      url: '/weather?city=Paris',
-      headers: { authorization: authHeader },
+      // Then
+      expect(response.statusCode).toBe(403);
     });
 
-    // Then
-    expect(response.statusCode).toBe(502);
-  });
-
-  it('stores geo and weather results in cache on a MISS', async () => {
-    // Given
-    mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
-
-    // When
-    await app.inject({
-      method: 'GET',
-      url: '/weather?city=Paris',
-      headers: { authorization: authHeader },
+    it('returns 401 without token', async () => {
+      const response = await app.inject({ method: 'GET', url: '/weather/forecast?city=Paris' });
+      expect(response.statusCode).toBe(401);
     });
 
-    // Then — two Redis SET calls: one for geo, one for weather
-    expect(mockRedis.set).toHaveBeenCalledTimes(2);
+    it('returns 404 when city is not found', async () => {
+      // Given
+      setupDbSelectUser(mockDb, PRO_USER);
+      mockFetch({ ok: true, body: [] });
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather/forecast?city=Atlantis',
+        headers: { authorization: proHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('returns 502 when the OWM API returns an error', async () => {
+      // Given
+      setupDbSelectUser(mockDb, PRO_USER);
+      mockFetch({ ok: false, status: 503 });
+
+      // When
+      const response = await app.inject({
+        method: 'GET',
+        url: '/weather/forecast?city=Paris',
+        headers: { authorization: proHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(502);
+    });
+  });
+
+  describe('POST /weather/cache/invalidate', () => {
+    it('returns 200 for admin', async () => {
+      // Given
+      setupDbSelectUser(mockDb, ADMIN_USER);
+
+      // When
+      const response = await app.inject({
+        method: 'POST',
+        url: '/weather/cache/invalidate?city=Paris',
+        headers: { authorization: adminHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ message: 'Cache invalidated for city: Paris' });
+    });
+
+    it('deletes geo, weather, and forecast cache keys when geo is cached', async () => {
+      // Given
+      setupDbSelectUser(mockDb, ADMIN_USER);
+      mockRedis.get.mockResolvedValueOnce(JSON.stringify(GEO_PARIS[0])); // geo hit → also delete weather+forecast
+
+      // When
+      await app.inject({
+        method: 'POST',
+        url: '/weather/cache/invalidate?city=Paris',
+        headers: { authorization: adminHeader },
+      });
+
+      // Then — 3 DEL calls: weather key, forecast key, geo key
+      expect(mockRedis.del).toHaveBeenCalledTimes(3);
+    });
+
+    it('returns 403 for viewer', async () => {
+      // Given
+      setupDbSelectUser(mockDb, VIEWER_USER);
+
+      // When
+      const response = await app.inject({
+        method: 'POST',
+        url: '/weather/cache/invalidate?city=Paris',
+        headers: { authorization: viewerHeader },
+      });
+
+      // Then
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('returns 401 without token', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/weather/cache/invalidate?city=Paris',
+      });
+      expect(response.statusCode).toBe(401);
+    });
   });
 });
