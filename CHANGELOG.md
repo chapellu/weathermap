@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/chapellu/weathermap/compare/weatherapp-v0.7.0...weatherapp-v0.7.1) (2026-04-17)
+
+
+### Bug Fixes
+
+* fastify metrics were missing + merge auth between metrics and weather routes ([b254bf2](https://github.com/chapellu/weathermap/commit/b254bf2f5ddfe05c364ddf9257529ecf33c82f7b))
+
 ## [0.7.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.6.0...weatherapp-v0.7.0) (2026-04-17)
 
 
