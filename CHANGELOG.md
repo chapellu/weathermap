@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/chapellu/weathermap/compare/weatherapp-v0.7.1...weatherapp-v0.7.2) (2026-04-17)
+
+
+### Bug Fixes
+
+* improve login ([10bbd07](https://github.com/chapellu/weathermap/commit/10bbd079ee4477381d2cd7f50859852848829f6b))
+
 ## [0.7.1](https://github.com/chapellu/weathermap/compare/weatherapp-v0.7.0...weatherapp-v0.7.1) (2026-04-17)
 
 
