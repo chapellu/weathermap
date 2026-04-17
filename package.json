@@ -1,6 +1,6 @@
 {
   "name": "weatherapp",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "Fastify weather API with Google OAuth2, ABAC, Redis cache, and Prometheus metrics",
   "private": true,
   "type": "module",
@@ -28,7 +28,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,json,yml,yaml,md}": ["biome check --write --no-errors-on-unmatched"]
+    "*.{ts,json,yml,yaml,md}": [
+      "biome check --write --no-errors-on-unmatched"
+    ]
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

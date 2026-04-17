@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.7.2...weatherapp-v0.8.0) (2026-04-17)
+
+
+### Features
+
+* add weather forecast functionality and user permissions ([b636946](https://github.com/chapellu/weathermap/commit/b6369461774953d49f6d47741a59fbd3e29b820b))
+
+
+### Bug Fixes
+
+* add coverage ([ef0ff25](https://github.com/chapellu/weathermap/commit/ef0ff2544c63301b8d9542beb9abae91e94b075f))
+* correct type definition for mockRedis and update schema types ([f930541](https://github.com/chapellu/weathermap/commit/f930541d5f509264200434e65642eca7d81e6355))
+* use absolute import ([2f2ba27](https://github.com/chapellu/weathermap/commit/2f2ba27c5b6112c54418482904cf1eaa439cfc7c))
+* use biome ([0f7f35a](https://github.com/chapellu/weathermap/commit/0f7f35a11d369bb54a110d712b9e446c82facc02))
+
 ## [0.7.2](https://github.com/chapellu/weathermap/compare/weatherapp-v0.7.1...weatherapp-v0.7.2) (2026-04-17)
 
 
