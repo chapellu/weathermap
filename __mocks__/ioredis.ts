@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 
 export const mockRedis = {
-  get: vi.fn<[string], Promise<string | null>>().mockResolvedValue(null),
+  get: vi.fn<(key: string) => Promise<string | null>>().mockResolvedValue(null),
   set: vi.fn().mockResolvedValue('OK'),
   del: vi.fn().mockResolvedValue(1),
   incr: vi.fn().mockResolvedValue(1),
