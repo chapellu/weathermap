@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.6.0...weatherapp-v0.7.0) (2026-04-17)
+
+
+### Features
+
+* **metrics:** add Prometheus metrics support ([3d0fd02](https://github.com/chapellu/weathermap/commit/3d0fd02d9a587a9920aede8c31a672574aeb728d))
+* **metrics:** add Prometheus metrics support ([2b0a29e](https://github.com/chapellu/weathermap/commit/2b0a29ed52c2e956e5b37f61212b333ea2edd198))
+
 ## [0.6.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.5.0...weatherapp-v0.6.0) (2026-04-16)
 
 
