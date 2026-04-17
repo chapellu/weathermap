@@ -1,6 +1,7 @@
 import { geocodeCity, fetchCurrentWeather } from './owm-client.js';
 import type { GeocodingResult, CurrentWeather } from './owm-client.js';
 import { cacheGet, cacheSet, CACHE_TTL_GEO, CACHE_TTL_WEATHER } from './cache.js';
+import { cacheHitCounter, cacheMissCounter } from './metrics.js';
 
 export interface WeatherResult {
   city: string;
@@ -50,10 +51,12 @@ export async function getWeather(city: string): Promise<WeatherResponse> {
   const weatherKey = buildWeatherKey(geo.lat, geo.lon);
   const cachedWeather = await cacheGet<CurrentWeather>(weatherKey);
   if (cachedWeather) {
+    cacheHitCounter.inc();
     return { data: toWeatherResult(geo, cachedWeather), cacheStatus: 'HIT' };
   }
 
   const weather = await fetchCurrentWeather({ lat: geo.lat, lon: geo.lon });
   await cacheSet(weatherKey, weather, CACHE_TTL_WEATHER);
+  cacheMissCounter.inc();
   return { data: toWeatherResult(geo, weather), cacheStatus: 'MISS' };
 }

@@ -13,6 +13,7 @@ import fastifyCookie from '@fastify/cookie';
 import { loggerPlugin } from './plugins/logger.plugin.js';
 import { swaggerPlugin } from './plugins/swagger.plugin.js';
 import { authPlugin } from './plugins/auth.plugin.js';
+import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { weatherRoutes } from './routes/weather.js';
 import { authRoutes } from './routes/auth.js';
 import { closeCache } from './lib/cache.js';
@@ -44,6 +45,7 @@ export async function buildApp() {
   await fastify.register(loggerPlugin);
   await fastify.register(swaggerPlugin, { version });
   await fastify.register(authPlugin);
+  await fastify.register(metricsPlugin);
   await fastify.register(authRoutes);
   await fastify.register(weatherRoutes);
 
