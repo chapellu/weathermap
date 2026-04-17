@@ -1,47 +1,32 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
-import { cacheGet, cacheSet } from '../lib/cache.js';
-import { generateTestToken, TEST_USER } from '../test/helpers/auth.helper.js';
+import { mockRedis } from '../../__mocks__/ioredis.js';
+import { generateTestToken } from '../test/helpers/auth.helper.js';
 
-const { TEST_JWT_SECRET } = vi.hoisted(() => ({
-  TEST_JWT_SECRET: 'test-secret-that-is-at-least-32-chars-long!!',
-}));
+vi.mock('../lib/env.js');
+vi.mock('ioredis');
 
-vi.mock('../lib/env.js', () => ({
-  env: {
-    OPENWEATHER_API_KEY: 'test-api-key',
-    NODE_ENV: 'test',
-    JWT_SECRET: TEST_JWT_SECRET,
-    DATABASE_URL: 'postgresql://test',
-    GOOGLE_CLIENT_ID: 'test-client-id',
-    GOOGLE_CLIENT_SECRET: 'test-client-secret',
-  },
-}));
-
-vi.mock('../lib/cache.js', () => ({
-  cacheGet: vi.fn().mockResolvedValue(null),
-  cacheSet: vi.fn().mockResolvedValue(undefined),
-  closeCache: vi.fn().mockResolvedValue(undefined),
-  CACHE_TTL_GEO: 86400,
-  CACHE_TTL_WEATHER: 600,
-}));
-
-vi.mock('../db/client.js', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve([TEST_USER])),
+const { mockDb } = vi.hoisted(() => {
+  const authUser = { id: 1, email: 'test@example.com', role: 'viewer', plan: 'free' };
+  return {
+    mockDb: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([authUser])),
+          })),
         })),
       })),
-    })),
-  },
-}));
+    },
+  };
+});
+
+vi.mock('../db/client.js', () => ({ db: mockDb }));
 
 afterEach(() => {
-  vi.clearAllMocks(); // reset call counts on vi.mock() mocks
-  vi.restoreAllMocks(); // restore spies (e.g. global.fetch)
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 const GEO_PARIS = [{ lat: 48.85, lon: 2.35, country: 'FR', name: 'Paris' }];
@@ -118,10 +103,11 @@ describe('GET /weather', () => {
   });
 
   it('sets X-Cache-Status: HIT and skips OWM when weather is cached', async () => {
-    // Given — geo and weather both hit the cache
-    vi.mocked(cacheGet)
-      .mockResolvedValueOnce(GEO_PARIS[0]) // geo hit
-      .mockResolvedValueOnce(WEATHER_PARIS); // weather hit
+    // Given — geo and weather both hit the cache; daily count check sits between the two gets
+    mockRedis.get
+      .mockResolvedValueOnce(JSON.stringify(GEO_PARIS[0])) // geo hit
+      .mockResolvedValueOnce(null) // daily:...: → 0 (count check)
+      .mockResolvedValueOnce(JSON.stringify(WEATHER_PARIS)); // weather hit
     const fetchSpy = vi.spyOn(global, 'fetch');
 
     // When
@@ -186,7 +172,7 @@ describe('GET /weather', () => {
       headers: { authorization: authHeader },
     });
 
-    // Then — two cacheSet calls: one for geo, one for weather
-    expect(vi.mocked(cacheSet)).toHaveBeenCalledTimes(2);
+    // Then — two Redis SET calls: one for geo, one for weather
+    expect(mockRedis.set).toHaveBeenCalledTimes(2);
   });
 });

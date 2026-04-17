@@ -69,3 +69,33 @@ export async function fetchCurrentWeather(coords: {
   const data: unknown = await response.json();
   return CurrentWeatherSchema.parse(data);
 }
+
+const ForecastItemSchema = z.object({
+  dt_txt: z.string(),
+  main: z.object({ temp: z.number(), feels_like: z.number(), humidity: z.number() }),
+  weather: z.array(z.object({ description: z.string() })).min(1),
+  wind: z.object({ speed: z.number() }),
+});
+
+const ForecastResponseSchema = z.object({
+  list: z.array(ForecastItemSchema).min(1),
+  city: z.object({ name: z.string(), country: z.string() }),
+});
+
+export type ForecastResponse = z.infer<typeof ForecastResponseSchema>;
+export type ForecastItem = z.infer<typeof ForecastItemSchema>;
+
+export async function fetchForecast(coords: {
+  lat: number;
+  lon: number;
+}): Promise<ForecastResponse> {
+  const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${coords.lat}&lon=${coords.lon}&units=metric&lang=fr&appid=${env.OPENWEATHER_API_KEY}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new OwmApiError(response.status);
+  }
+
+  const data: unknown = await response.json();
+  return ForecastResponseSchema.parse(data);
+}
