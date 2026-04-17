@@ -1142,11 +1142,12 @@ REDIS_URL
 
 **Objectif** : avoir une visibilité sur l'app en production.
 
-- `plugins/metrics.plugin.ts` — fastify-metrics, route `/metrics` protégée par `METRICS_TOKEN`
-- Compteurs custom `weather_cache_hit_total` + `weather_cache_miss_total`
-- Enrichissement logs logfmt (`cache=hit|miss`, `user=`, `duration=`)
+- ✅ `plugins/metrics.plugin.ts` — `fastify-metrics` (HTTP latency histogram auto-instrumenté) + route `/metrics` protégée par `fastify.authenticate` (même JWT que les autres routes, pas de token séparé)
+- ✅ `lib/metrics.ts` — registry custom isolé (`prom-client`) + compteurs `weather_cache_hit_total` / `weather_cache_miss_total` ; les deux registries sont mergés dans le handler `/metrics`
+- ✅ Enrichissement logs (`cache=hit|miss`, `user=email`, `duration=ms`) via hook `onResponse` dans `logger.plugin.ts`
+- ✅ Route `/metrics` visible dans Swagger UI avec `security: bearerAuth`
 
-**Livrable** : métriques cache visibles, `/metrics` non accessible sans token.
+**Livrable** : métriques cache visibles, `/metrics` non accessible sans JWT valide.
 
 ---
 

@@ -25,6 +25,9 @@ importers:
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      fastify-metrics:
+        specifier: ^13.2.0
+        version: 13.2.0(fastify@5.8.5)
       fastify-plugin:
         specifier: ^5.1.0
         version: 5.1.0
@@ -2334,6 +2337,19 @@ packages:
       {
         integrity: sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA==,
       }
+
+  fastify-metrics@13.2.0:
+    resolution:
+      {
+        integrity: sha512-WPCjpqkEMCImwHLEA+8OR95zxSupLlK6iqaAPkBiQWYUsMCDkr45Qt1sQVPjoJ8WjZDpCShv3I0Q7XG7dPg3aQ==,
+      }
+    engines: { node: '>=20', pnpm: '>=10' }
+    peerDependencies:
+      '@platformatic/prom-client': ^1.0.0
+      fastify: '>=5'
+    peerDependenciesMeta:
+      '@platformatic/prom-client':
+        optional: true
 
   fastify-plugin@5.1.0:
     resolution:
@@ -5095,6 +5111,12 @@ snapshots:
   fast-safe-stringify@2.1.1: {}
 
   fast-uri@3.1.0: {}
+
+  fastify-metrics@13.2.0(fastify@5.8.5):
+    dependencies:
+      fastify: 5.8.5
+      fastify-plugin: 5.1.0
+      prom-client: 15.1.3
 
   fastify-plugin@5.1.0: {}
 

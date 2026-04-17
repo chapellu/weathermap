@@ -7,7 +7,6 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   JWT_SECRET: z.string().min(32),
-  METRICS_TOKEN: z.string().min(16),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
 

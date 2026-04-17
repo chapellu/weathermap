@@ -1,26 +1,29 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
-import { env } from '../lib/env.js';
-import { registry } from '../lib/metrics.js';
+import fastifyMetrics from 'fastify-metrics';
+import { Registry } from 'prom-client';
+import { customRegistry } from '../lib/metrics.js';
 
 export const metricsPlugin = fp(async (fastify: FastifyInstance) => {
+  await fastify.register(fastifyMetrics, {
+    clearRegisterOnInit: true,
+    endpoint: null,
+  });
+
   fastify.get(
     '/metrics',
     {
+      preHandler: [fastify.authenticate],
       schema: {
-        description: 'Prometheus metrics endpoint — requires Bearer METRICS_TOKEN',
+        description: 'Prometheus metrics — requires JWT auth',
         tags: ['System'],
         security: [{ bearerAuth: [] }],
       },
     },
-    async (request, reply) => {
-      const authHeader = request.headers.authorization;
-      if (authHeader !== `Bearer ${env.METRICS_TOKEN}`) {
-        return reply.code(401).send({ error: 'Unauthorized' });
-      }
-
-      const metrics = await registry.metrics();
-      return reply.code(200).header('Content-Type', registry.contentType).send(metrics);
+    async (_request, reply) => {
+      const merged = Registry.merge([customRegistry, fastify.metrics.client.register]);
+      const output = await merged.metrics();
+      return reply.code(200).header('Content-Type', merged.contentType).send(output);
     },
   );
 });

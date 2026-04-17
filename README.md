@@ -11,18 +11,17 @@ A weather REST API built with Fastify, TypeScript, and OpenWeatherMap. Deployed 
 
 ## Stack
 
-| Layer       | Choice                                               |
-| ----------- | ---------------------------------------------------- |
-| Runtime     | Node.js 22 + TypeScript                              |
-| Framework   | Fastify 5                                            |
-| Auth        | Google OAuth2 + JWT (identity only)                  |
-| Permissions | ABAC — deny by default, resolved from DB per request |
-| Database    | PostgreSQL via Drizzle ORM                           |
-| Cache       | Redis — geocoding (24h) + weather (10min)            |
-| Logging     | Pino + logfmt                                        |
-| Metrics     | Prometheus (`/metrics`) + Grafana Cloud              |
-| Docs        | Swagger UI (`/docs`)                                 |
-| PaaS        | Render (free tier)                                   |
+| Layer     | Choice                                    |
+| --------- | ----------------------------------------- |
+| Runtime   | Node.js 22 + TypeScript                   |
+| Framework | Fastify 5                                 |
+| Auth      | Google OAuth2 + JWT (identity only)       |
+| Database  | PostgreSQL via Drizzle ORM                |
+| Cache     | Redis — geocoding (24h) + weather (10min) |
+| Logging   | Pino + logfmt                             |
+| Metrics   | Prometheus (`/metrics`) + Grafana Cloud   |
+| Docs      | Swagger UI (`/docs`)                      |
+| PaaS      | Render (free tier)                        |
 
 ---
 
@@ -76,31 +75,24 @@ pnpm db:migrate     # drizzle-kit run migrations
 ```
 src/
   plugins/
-    auth.plugin.ts        # Google OAuth2 → JWT { email, exp }
-    jwt.plugin.ts         # Verify JWT + DB lookup → req.user
-    permissions.plugin.ts # ABAC engine — deny by default
-    metrics.plugin.ts     # Prometheus metrics (Bearer-protected)
-    logger.plugin.ts      # Pino request logging
+    auth.plugin.ts        # JWT sign/verify + DB lookup → req.user
+    metrics.plugin.ts     # GET /metrics — Prometheus (Bearer-protected)
+    logger.plugin.ts      # Pino hooks: incoming request + onResponse (cache, user, duration)
     swagger.plugin.ts     # OpenAPI spec + Swagger UI
   routes/
-    weather.ts            # GET /weather, GET /weather/forecast
+    weather.ts            # GET /weather
     weather.test.ts
-    admin/
-      users.ts            # GET|PATCH|DELETE /admin/users
-      users.test.ts
     auth.ts               # GET /auth/google, GET /auth/callback
   lib/
     owm-client.ts         # OpenWeatherMap HTTP client
     weather.service.ts    # Orchestration: geocode → cache → weather
-    cache.ts              # Redis abstraction
-    geo.ts                # isEuropean(countryCode)
-  policies/
-    weather.policy.ts     # ABAC rules for weather routes
-    admin.policy.ts       # ABAC rules for admin routes
+    cache.ts              # Redis abstraction (two-level: geo 24h, weather 10min)
+    metrics.ts            # prom-client registry + cache hit/miss counters
+    env.ts                # Zod env validation
   db/
     schema.ts             # Drizzle schema (users table)
     migrations/
-  test/helpers/           # JWT, DB seed, OWM mock helpers
+  test/helpers/           # JWT test helper
   types/
     fastify.d.ts          # req.user augmentation
   index.ts                # buildApp() factory — used by tests
@@ -111,35 +103,15 @@ src/
 
 ## API
 
-| Method | Route                       | Auth         | Description                |
-| ------ | --------------------------- | ------------ | -------------------------- |
-| GET    | `/healthz`                  | —            | Health check               |
-| GET    | `/docs`                     | —            | Swagger UI                 |
-| GET    | `/auth/google`              | —            | Redirect to Google consent |
-| GET    | `/weather`                  | JWT          | Current weather for a city |
-| GET    | `/weather/forecast`         | JWT (pro)    | 5-day forecast             |
-| POST   | `/weather/cache/invalidate` | JWT (admin)  | Invalidate weather cache   |
-| GET    | `/admin/users`              | JWT (admin)  | List users                 |
-| GET    | `/admin/users/:id`          | JWT (admin)  | Get user                   |
-| PATCH  | `/admin/users/:id/plan`     | JWT (admin)  | Update plan (free/pro)     |
-| PATCH  | `/admin/users/:id/role`     | JWT (admin)  | Update role (viewer/admin) |
-| DELETE | `/admin/users/:id`          | JWT (admin)  | Delete user                |
-| GET    | `/metrics`                  | Bearer token | Prometheus metrics         |
-
----
-
-## Access control (ABAC)
-
-Permissions are resolved from the database on every request — a plan or role change is effective immediately without any token refresh.
-
-| Action                     | Condition                      | Result |
-| -------------------------- | ------------------------------ | ------ |
-| Read current weather       | any authenticated user         | ALLOW  |
-| Read forecast              | `plan = pro` or `role = admin` | ALLOW  |
-| Read non-European city     | `plan = free`                  | DENY   |
-| Read after 10 requests/day | `plan = free`                  | DENY   |
-| Invalidate cache           | `role = admin`                 | ALLOW  |
-| Access `/admin/*`          | `role = admin`                 | ALLOW  |
+| Method | Route            | Auth         | Description                  |
+| ------ | ---------------- | ------------ | ---------------------------- |
+| GET    | `/healthz`       | —            | Health check                 |
+| GET    | `/version`       | —            | App version                  |
+| GET    | `/docs`          | —            | Swagger UI                   |
+| GET    | `/auth/google`   | —            | Redirect to Google consent   |
+| GET    | `/auth/callback` | —            | OAuth2 callback → JWT cookie |
+| GET    | `/weather`       | JWT          | Current weather for a city   |
+| GET    | `/metrics`       | Bearer token | Prometheus metrics           |
 
 ---
 
