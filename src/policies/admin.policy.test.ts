@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateAdminPolicy } from './admin.policy.js';
+import { evaluateAdminPolicy } from '@/policies/admin.policy.js';
 
 describe('evaluateAdminPolicy', () => {
   describe('admin:manage:users', () => {

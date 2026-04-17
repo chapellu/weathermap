@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { env } from './env.js';
+import { env } from '@/lib/env.js';
 
 export const CACHE_TTL_GEO = 24 * 60 * 60; // 24h in seconds
 export const CACHE_TTL_WEATHER = 10 * 60; // 10min in seconds

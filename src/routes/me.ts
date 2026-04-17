@@ -2,10 +2,10 @@ import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { db } from '../db/client.js';
-import { users } from '../db/schema.js';
-import { getDailyCount, resetDailyCount } from '../lib/cache.js';
-import { DAILY_REQUEST_LIMIT } from '../lib/weather.service.js';
+import { db } from '@/db/client.js';
+import { users } from '@/db/schema.js';
+import { getDailyCount, resetDailyCount } from '@/lib/cache.js';
+import { DAILY_REQUEST_LIMIT } from '@/lib/weather.service.js';
 
 const UserSchema = z.object({
   id: z.number(),

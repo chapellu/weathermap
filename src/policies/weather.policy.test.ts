@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateWeatherPolicy } from './weather.policy.js';
+import { evaluateWeatherPolicy } from '@/policies/weather.policy.js';
 
 const viewer = { role: 'viewer', plan: 'free' };
 const pro = { role: 'viewer', plan: 'pro' };

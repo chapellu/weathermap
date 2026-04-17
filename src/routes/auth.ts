@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import { OAuth2Client } from 'google-auth-library';
-import { db } from '../db/client.js';
-import { users } from '../db/schema.js';
-import { env } from '../lib/env.js';
+import { db } from '@/db/client.js';
+import { users } from '@/db/schema.js';
+import { env } from '@/lib/env.js';
 
 const SCOPES = ['openid', 'email'];
 

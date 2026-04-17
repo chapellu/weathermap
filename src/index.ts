@@ -10,16 +10,16 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { closeCache } from './lib/cache.js';
-import { authPlugin } from './plugins/auth.plugin.js';
-import { loggerPlugin } from './plugins/logger.plugin.js';
-import { metricsPlugin } from './plugins/metrics.plugin.js';
-import { permissionsPlugin } from './plugins/permissions.plugin.js';
-import { swaggerPlugin } from './plugins/swagger.plugin.js';
-import { adminUsersRoutes } from './routes/admin/users.js';
-import { authRoutes } from './routes/auth.js';
-import { meRoutes } from './routes/me.js';
-import { weatherRoutes } from './routes/weather.js';
+import { closeCache } from '@/lib/cache.js';
+import { authPlugin } from '@/plugins/auth.plugin.js';
+import { loggerPlugin } from '@/plugins/logger.plugin.js';
+import { metricsPlugin } from '@/plugins/metrics.plugin.js';
+import { permissionsPlugin } from '@/plugins/permissions.plugin.js';
+import { swaggerPlugin } from '@/plugins/swagger.plugin.js';
+import { adminUsersRoutes } from '@/routes/admin/users.js';
+import { authRoutes } from '@/routes/auth.js';
+import { meRoutes } from '@/routes/me.js';
+import { weatherRoutes } from '@/routes/weather.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf-8')) as {

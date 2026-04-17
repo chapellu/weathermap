@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
-import { evaluateAdminPolicy } from '../policies/admin.policy.js';
-import { evaluateWeatherPolicy } from '../policies/weather.policy.js';
+import { evaluateAdminPolicy } from '@/policies/admin.policy.js';
+import { evaluateWeatherPolicy } from '@/policies/weather.policy.js';
 
 const DENY_MESSAGES: Record<string, string> = {
   'weather:read:forecast':

@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { mockRedis } from '../../__mocks__/ioredis.js';
-import { buildApp } from '../index.js';
-import { generateTestToken } from '../test/helpers/auth.helper.js';
+import { mockRedis } from '#mocks/ioredis.js';
+import { buildApp } from '@/index.js';
+import { generateTestToken } from '@/test/helpers/auth.helper.js';
 
-vi.mock('../lib/env.js');
+vi.mock('@/lib/env.js');
 vi.mock('ioredis');
 
 const { mockDb } = vi.hoisted(() => {
@@ -22,7 +22,7 @@ const { mockDb } = vi.hoisted(() => {
   };
 });
 
-vi.mock('../db/client.js', () => ({ db: mockDb }));
+vi.mock('@/db/client.js', () => ({ db: mockDb }));
 
 afterEach(() => {
   vi.clearAllMocks();

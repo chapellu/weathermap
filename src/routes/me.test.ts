@@ -1,17 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { buildApp } from '../index.js';
-import { generateTestToken, TEST_USER } from '../test/helpers/auth.helper.js';
-import { setupDbSelectUser } from '../test/helpers/mocks.js';
+import { buildApp } from '@/index.js';
+import { generateTestToken, TEST_USER } from '@/test/helpers/auth.helper.js';
+import { setupDbSelectUser } from '@/test/helpers/mocks.js';
 
-vi.mock('../lib/env.js');
+vi.mock('@/lib/env.js');
 vi.mock('ioredis');
 
 const { mockDb } = vi.hoisted(() => ({
   mockDb: { select: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
 
-vi.mock('../db/client.js', () => ({ db: mockDb }));
+vi.mock('@/db/client.js', () => ({ db: mockDb }));
 
 const DB_USER = { id: 1, ...TEST_USER };
 

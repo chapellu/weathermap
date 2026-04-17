@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { env } from './env.js';
+import { env } from '@/lib/env.js';
 
 export class OwmCityNotFoundError extends Error {
   constructor(city: string) {

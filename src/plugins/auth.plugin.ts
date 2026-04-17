@@ -2,9 +2,9 @@ import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import { jwtVerify, SignJWT } from 'jose';
-import { db } from '../db/client.js';
-import { users } from '../db/schema.js';
-import { env } from '../lib/env.js';
+import { db } from '@/db/client.js';
+import { users } from '@/db/schema.js';
+import { env } from '@/lib/env.js';
 
 const secret = new TextEncoder().encode(env.JWT_SECRET);
 

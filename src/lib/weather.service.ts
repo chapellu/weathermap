@@ -6,9 +6,9 @@ import {
   cacheSet,
   getDailyCount,
   incrementDailyCount,
-} from './cache.js';
-import { isEuropean } from './geo.js';
-import { cacheHitCounter, cacheMissCounter } from './metrics.js';
+} from '@/lib/cache.js';
+import { isEuropean } from '@/lib/geo.js';
+import { cacheHitCounter, cacheMissCounter } from '@/lib/metrics.js';
 import type { CurrentWeather, ForecastResponse, GeocodingResult } from './owm-client.js';
 import { fetchCurrentWeather, fetchForecast, geocodeCity } from './owm-client.js';
 

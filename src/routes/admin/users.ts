@@ -2,8 +2,8 @@ import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { db } from '../../db/client.js';
-import { users } from '../../db/schema.js';
+import { db } from '@/db/client.js';
+import { users } from '@/db/schema.js';
 
 const UserSchema = z.object({
   id: z.number(),

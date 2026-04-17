@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import fastifyMetrics from 'fastify-metrics';
 import fp from 'fastify-plugin';
 import { Registry } from 'prom-client';
-import { customRegistry } from '../lib/metrics.js';
+import { customRegistry } from '@/lib/metrics.js';
 
 export const metricsPlugin = fp(async (fastify: FastifyInstance) => {
   await fastify.register(fastifyMetrics, {
