@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildApp } from '../index.js';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mockRedis } from '../../__mocks__/ioredis.js';
+import { buildApp } from '../index.js';
 import { generateTestToken } from '../test/helpers/auth.helper.js';
 
 vi.mock('../lib/env.js');

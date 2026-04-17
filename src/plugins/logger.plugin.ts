@@ -1,5 +1,5 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import fp from 'fastify-plugin';
 
 export const loggerPlugin = fp(async (fastify: FastifyInstance) => {
   fastify.addHook('onRequest', (request, _reply, done) => {
@@ -17,12 +17,12 @@ export const loggerPlugin = fp(async (fastify: FastifyInstance) => {
 
     const cacheStatus = reply.getHeader('X-Cache-Status');
     if (typeof cacheStatus === 'string') {
-      fields['cache'] = cacheStatus.toLowerCase();
+      fields.cache = cacheStatus.toLowerCase();
     }
 
     const user = (request as FastifyRequest & { user?: { email: string } }).user;
     if (user?.email) {
-      fields['user'] = user.email;
+      fields.user = user.email;
     }
 
     request.log.info(fields, 'request completed');

@@ -1,15 +1,15 @@
-import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
+import { OwmApiError, OwmCityNotFoundError } from '../lib/owm-client.js';
 import {
-  getWeather,
-  getForecast,
-  invalidateWeatherCache,
-  GeoRestrictedError,
-  DailyLimitExceededError,
   DAILY_REQUEST_LIMIT,
+  DailyLimitExceededError,
+  GeoRestrictedError,
+  getForecast,
+  getWeather,
+  invalidateWeatherCache,
 } from '../lib/weather.service.js';
-import { OwmCityNotFoundError, OwmApiError } from '../lib/owm-client.js';
 
 const WeatherQuerySchema = z.object({
   city: z.string().min(1).max(100).trim().describe('City name to look up'),

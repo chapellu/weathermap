@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../index.js';
 import { generateTestToken, TEST_USER } from '../test/helpers/auth.helper.js';
 import { setupDbSelectUser } from '../test/helpers/mocks.js';

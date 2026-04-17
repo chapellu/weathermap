@@ -1,25 +1,25 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { z } from 'zod';
-import Fastify from 'fastify';
+import fastifyCookie from '@fastify/cookie';
 import sensible from '@fastify/sensible';
+import Fastify from 'fastify';
 import {
   serializerCompiler,
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
-import fastifyCookie from '@fastify/cookie';
-import { loggerPlugin } from './plugins/logger.plugin.js';
-import { swaggerPlugin } from './plugins/swagger.plugin.js';
+import { z } from 'zod';
+import { closeCache } from './lib/cache.js';
 import { authPlugin } from './plugins/auth.plugin.js';
-import { permissionsPlugin } from './plugins/permissions.plugin.js';
+import { loggerPlugin } from './plugins/logger.plugin.js';
 import { metricsPlugin } from './plugins/metrics.plugin.js';
-import { weatherRoutes } from './routes/weather.js';
+import { permissionsPlugin } from './plugins/permissions.plugin.js';
+import { swaggerPlugin } from './plugins/swagger.plugin.js';
+import { adminUsersRoutes } from './routes/admin/users.js';
 import { authRoutes } from './routes/auth.js';
 import { meRoutes } from './routes/me.js';
-import { adminUsersRoutes } from './routes/admin/users.js';
-import { closeCache } from './lib/cache.js';
+import { weatherRoutes } from './routes/weather.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf-8')) as {
@@ -31,7 +31,7 @@ export async function buildApp() {
     trustProxy: true,
     logger: {
       transport:
-        process.env['NODE_ENV'] === 'production'
+        process.env.NODE_ENV === 'production'
           ? { target: 'pino-logfmt' }
           : {
               target: 'pino-pretty',

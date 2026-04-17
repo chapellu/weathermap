@@ -1,6 +1,6 @@
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import fastifyMetrics from 'fastify-metrics';
+import fp from 'fastify-plugin';
 import { Registry } from 'prom-client';
 import { customRegistry } from '../lib/metrics.js';
 

@@ -1,9 +1,9 @@
+import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import { OAuth2Client } from 'google-auth-library';
-import { eq } from 'drizzle-orm';
-import { env } from '../lib/env.js';
 import { db } from '../db/client.js';
 import { users } from '../db/schema.js';
+import { env } from '../lib/env.js';
 
 const SCOPES = ['openid', 'email'];
 
@@ -17,7 +17,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (req, reply) => {
-      const redirectUri = `${req.protocol}://${String(req.headers['host'])}/auth/callback`;
+      const redirectUri = `${req.protocol}://${String(req.headers.host)}/auth/callback`;
       const client = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri);
       const authUrl = client.generateAuthUrl({ access_type: 'online', scope: SCOPES });
       return reply.redirect(authUrl);
@@ -39,7 +39,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         throw fastify.httpErrors.badRequest('Missing OAuth2 code');
       }
 
-      const redirectUri = `${req.protocol}://${String(req.headers['host'])}/auth/callback`;
+      const redirectUri = `${req.protocol}://${String(req.headers.host)}/auth/callback`;
       const client = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri);
 
       const { tokens } = await client.getToken(code);

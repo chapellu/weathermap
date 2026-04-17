@@ -1,10 +1,10 @@
-import fp from 'fastify-plugin';
-import type { FastifyPluginAsync } from 'fastify';
-import { SignJWT, jwtVerify } from 'jose';
 import { eq } from 'drizzle-orm';
-import { env } from '../lib/env.js';
+import type { FastifyPluginAsync } from 'fastify';
+import fp from 'fastify-plugin';
+import { jwtVerify, SignJWT } from 'jose';
 import { db } from '../db/client.js';
 import { users } from '../db/schema.js';
+import { env } from '../lib/env.js';
 
 const secret = new TextEncoder().encode(env.JWT_SECRET);
 
@@ -28,8 +28,8 @@ const plugin: FastifyPluginAsync = async (fastify) => {
 
         if (authHeader?.startsWith('Bearer ')) {
           token = authHeader.slice(7);
-        } else if (req.cookies?.['token']) {
-          token = req.cookies['token'];
+        } else if (req.cookies?.token) {
+          token = req.cookies.token;
         }
 
         if (!token) {
@@ -37,7 +37,7 @@ const plugin: FastifyPluginAsync = async (fastify) => {
         }
 
         const { payload } = await jwtVerify(token, secret);
-        const email = payload['email'];
+        const email = payload.email;
 
         if (typeof email !== 'string') {
           throw new Error('Invalid token payload');

@@ -1,7 +1,7 @@
-import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { db } from '../db/client.js';
 import { users } from '../db/schema.js';
 import { getDailyCount, resetDailyCount } from '../lib/cache.js';
