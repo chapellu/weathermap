@@ -32,9 +32,9 @@ Utiliser les devcontainers ou configurer localement avec les bonnes variables d'
 
 ```bash
 pnpm install
-cp .env.example .env   # remplir les variables
-pnpm db:migrate        # créer la table users
-pnpm dev               # démarre avec hot reload
+cp .env.example .env
+pnpm db:migrate
+pnpm dev
 ```
 
 ---
