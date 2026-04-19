@@ -288,8 +288,15 @@ Avec ces données, les dashboards Grafana prioritaires seraient :
 
 **Sécurité :**
 
+- Pas d'analyses des vulnérabilités (Snyk, npm audit) — les dépendances ne sont pas régulièrement vérifiées
+- Pas de mise à jour automatique des dépendances (Dependabot) — les updates sont manuelles
+- Pas de backup
 - Pas de liste de révocation de tokens (JTI blacklist) — impossible d'invalider un token compromis avant expiration
 - Pas de rate limiting au niveau réseau (WAF, nginx `limit_req`) — seule la limite applicative quotidienne existe
+- Cacher la documentation des endpoints d'administration
+- Utiliser des UUID pour les IDs utilisateurs au lieu d'id sequentiels (protection contre le scraping et enumeration)
+- Supprimer les endpoints de gestion de compte (PATCH /me, DELETE /me/daily-count) utilisé pour la démonstration
+- Pas de pentest de sécurité (ex : OWASP ZAP) pour détecter les vulnérabilités courantes (XSS, CSRF, injections)
 
 **Observabilité :**
 
@@ -303,6 +310,8 @@ Avec ces données, les dashboards Grafana prioritaires seraient :
 - Couverture de tests autour de 80% — les routes `/me`, `/admin` et le plugin `auth` ne sont pas couverts
 - Pas de tests de charge (k6, Artillery) pour valider le comportement sous stress
 - Pas de tests d'intégration avec une vraie base PostgreSQL et Redis (les tests mockent tout)
+- Pas de tests end-to-end du flux complet (authentification + météo)
+- Améliorer les messages de retour d'erreur pour les rendre plus clairs et actionnables (ex : différencier "ville non trouvée" de "limite quotidienne atteinte")
 
 ### Ce qui aurait été ajouté avec plus de temps
 
@@ -329,17 +338,17 @@ Avec ces données, les dashboards Grafana prioritaires seraient :
 ## Scripts
 
 ```bash
-pnpm dev             # démarrage en hot reload (tsx watch)
-pnpm build           # compilation vers dist/ (tsup, ESM)
-pnpm start           # exécute le build
-pnpm test            # vitest run
-pnpm test:watch      # vitest en mode watch
-pnpm test:coverage   # vitest + rapport de couverture
-pnpm lint            # Biome lint
-pnpm lint:fix        # Biome lint --write
-pnpm format:check    # Biome format check (utilisé en CI)
-pnpm check           # Biome check (lint + format)
-pnpm typecheck       # tsc --noEmit
-pnpm db:generate     # générer les migrations Drizzle
-pnpm db:migrate      # appliquer les migrations
+pnpm dev
+pnpm build
+pnpm start
+pnpm test
+pnpm test:watch
+pnpm test:coverage
+pnpm lint
+pnpm lint:fix
+pnpm format:check
+pnpm check
+pnpm typecheck
+pnpm db:generate
+pnpm db:migrate
 ```
