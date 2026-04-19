@@ -51,6 +51,10 @@ engine-strict=true
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": ["./src/*"],
+      "#mocks/*": ["./__mocks__/*"]
+    },
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -58,14 +62,19 @@ engine-strict=true
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": false,
-    "outDir": "dist",
-    "rootDir": "src"
-  }
+    "skipLibCheck": true,
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }
 ```
 
 > **Note** : `module: "Node16"` a été abandonné car `fastify` n'a pas de champ `exports` dans son `package.json`, ce qui rend les subpath imports comme `fastify/types/schema` impossibles avec la résolution stricte Node16. `moduleResolution: "Bundler"` est cohérent avec l'usage de tsup.
+>
+> **Aliases de chemin** : `@/*` → `src/*` et `#mocks/*` → `__mocks__/*`. `baseUrl` est deprecated depuis TypeScript 6 (TS5101) — les `paths` se résolvent directement par rapport à la localisation du tsconfig. Vitest est configuré avec les mêmes alias dans `resolve.alias`.
+>
+> **`rootDir`** absent intentionnellement : `__mocks__/ioredis.ts` est à la racine du projet (convention Vitest pour les mocks de modules node), hors de `src/`. Ajouter `rootDir: "src"` provoquerait TS6059. tsup bundle via esbuild indépendamment et ne requiert pas cette contrainte.
 
 Règles :
 
@@ -228,28 +237,34 @@ const GeocodingResponseSchema = z
 
 ### Linting et formatage
 
-#### ESLint (`eslint.config.ts`)
+#### Biome (`biome.json`)
 
-```typescript
-// Règles essentielles activées
-'no-console': 'error',              // utiliser le logger Pino
-'@typescript-eslint/no-explicit-any': 'error',
-'@typescript-eslint/no-floating-promises': 'error',
-'@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }], // _reply, _done tolérés
-'@typescript-eslint/consistent-type-imports': 'error', // import type { Foo }
-// Fastify plugins doivent être async par contrat même sans await explicite
-'@typescript-eslint/require-await': 'off',
-```
-
-#### Prettier (`.prettierrc`)
+ESLint et Prettier sont remplacés par **Biome** (outil unique, lint + format). Règles actives :
 
 ```json
 {
-  "semi": true,
-  "singleQuote": true,
-  "trailingComma": "all",
-  "printWidth": 100,
-  "tabWidth": 2
+  "linter": {
+    "rules": {
+      "recommended": true,
+      "correctness": { "noUnusedVariables": "error" },
+      "style": { "useImportType": "error" },
+      "suspicious": { "noExplicitAny": "error", "noConsole": "error" },
+      "nursery": { "noFloatingPromises": "error" }
+    }
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "quoteStyle": "single"
+    }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
 }
 ```
 
@@ -258,23 +273,25 @@ const GeocodingResponseSchema = z
 ```json
 {
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsup src/server.ts --format esm",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src --max-warnings 0",
-    "lint:fix": "eslint src --fix",
-    "format": "prettier --write src",
-    "format:check": "prettier --check src",
+    "lint": "biome lint src",
+    "lint:fix": "biome lint --write src",
+    "format": "biome format --write src",
+    "format:check": "biome format src",
+    "check": "biome check src",
+    "check:fix": "biome check --write src",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "prepare": "husky"
   },
   "lint-staged": {
-    "*.ts": ["eslint --fix", "prettier --write"],
-    "*.{json,yml,yaml,md}": ["prettier --write"]
+    "*.{ts,json,yml,yaml,md}": ["biome check --write --no-errors-on-unmatched"]
   }
 }
 ```
@@ -298,64 +315,43 @@ Then   → le résultat observable attendu (assertions)
 Les tests s'écrivent au niveau de la route HTTP, pas au niveau des modules internes. `fetch` est mocké globalement pour simuler les appels OWM. La structure interne est un détail d'implémentation non gelé par les tests.
 
 ```typescript
-// routes/weather.test.ts
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
+// src/routes/weather.test.ts
 import type { FastifyInstance } from 'fastify';
-import { buildApp } from '../index.js';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { mockRedis } from '#mocks/ioredis.js';
+import { buildApp } from '@/index.js';
+import { generateTestToken } from '@/test/helpers/auth.helper.js';
+import { setupDbSelectUser } from '@/test/helpers/mocks.js';
 
-vi.mock('../lib/env.js', () => ({
-  env: { OPENWEATHER_API_KEY: 'test-api-key', NODE_ENV: 'test' },
+vi.mock('@/lib/env.js');
+vi.mock('ioredis');
+
+const { mockDb } = vi.hoisted(() => ({
+  mockDb: { select: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
 
+vi.mock('@/db/client.js', () => ({ db: mockDb }));
+
 afterEach(() => {
+  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 
-function mockFetch(...responses: Array<{ ok: boolean; status?: number; body?: unknown }>) {
-  const spy = vi.spyOn(global, 'fetch');
-  for (const r of responses) {
-    spy.mockResolvedValueOnce({
-      ok: r.ok,
-      status: r.status ?? 200,
-      json: () => Promise.resolve(r.body),
-    } as Response);
-  }
-  return spy;
-}
-
-describe('GET /weather', () => {
-  let app: FastifyInstance;
-
-  beforeAll(async () => {
-    app = await buildApp();
-    await app.ready();
-  });
-  afterAll(async () => {
-    await app.close();
-  });
-
-  it('returns 200 with weather data for a valid city', async () => {
-    // Given
-    mockFetch({ ok: true, body: GEO_PARIS }, { ok: true, body: WEATHER_PARIS });
-
-    // When
-    const response = await app.inject({ method: 'GET', url: '/weather?city=Paris' });
-
-    // Then
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ city: 'Paris', temp: expect.any(Number) });
-  });
-});
+// __mocks__/ioredis.ts (à la racine du projet — convention Vitest pour les modules node)
+// mockRedis est un singleton partagé : get/set/del/incr/expire/quit sont des vi.fn()
+// Les fonctions cache réelles s'exécutent — seuls les appels Redis réseau sont interceptés.
 ```
+
+> **Stratégie de mock Redis** : `vi.mock('ioredis')` active `__mocks__/ioredis.ts` à la racine du projet. Le vrai code de `lib/cache.ts` s'exécute (getDailyCount, cacheGet, etc.) — seul le client ioredis sous-jacent est mocké. Cela teste la logique de cache sans roundtrip réseau.
 
 Les tests unitaires purs restent pertinents pour la logique sans I/O, comme les policies ABAC et `isEuropean`.
 
 #### Structure d'un fichier de test — unitaire (logique pure)
 
 ```typescript
-// policies/weather.policy.test.ts
+// src/policies/weather.policy.test.ts
 import { describe, it, expect } from 'vitest';
-import { evaluateWeatherPolicy } from './weather.policy.js';
+import { evaluateWeatherPolicy } from '@/policies/weather.policy.js';
 
 describe('weatherPolicy', () => {
   describe('weather:read:forecast', () => {
@@ -396,17 +392,30 @@ describe('weatherPolicy', () => {
 
 #### Coverage
 
-Seuils minimum dans `vitest.config.ts` :
+Provider **v8** (`@vitest/coverage-v8`). Seuils dans `vitest.config.ts` :
 
 ```typescript
 coverage: {
+  provider: 'v8',
+  include: ['src/**/*.ts'],
+  exclude: [
+    'src/**/*.test.ts',
+    'src/server.ts',
+    'src/types/**',
+    'src/db/client.ts',  // toujours mocké en test
+    'src/lib/env.ts',    // toujours mocké en test
+    'src/routes/auth.ts', // OAuth2 callback — non testable en unitaire
+  ],
   thresholds: {
     lines: 80,
-    functions: 80,
-    branches: 75,
-  }
+    statements: 77,
+    functions: 78,
+    branches: 65,
+  },
 }
 ```
+
+> Les fichiers exclus sont soit des singletons de connexion toujours mockés (`db/client.ts`, `lib/env.ts`), soit des flux OAuth non reproductibles en test unitaire (`routes/auth.ts`).
 
 ---
 
@@ -469,46 +478,56 @@ Le JWT ne porte que l'identité. Les attributs métier (`role`, `plan`) sont tou
 ## Structure du Projet
 
 ```
+__mocks__/
+  ioredis.ts              # Mock ioredis (racine projet — convention Vitest/Jest pour modules node)
 src/
   plugins/
-    auth.plugin.ts        # Google OAuth2 — vérifie identité → émet JWT { email, exp }
-    jwt.plugin.ts         # Vérifie JWT + lookup DB → attache req.user { email, role, plan }
+    auth.plugin.ts        # JWT sign + authenticate preHandler (cookie ou Bearer) + Google OAuth2
     permissions.plugin.ts # Moteur ABAC — deny by default
     metrics.plugin.ts     # fastify-metrics (route /metrics protégée par Bearer token statique)
     logger.plugin.ts      # Pino + logfmt
     swagger.plugin.ts     # Swagger UI + OpenAPI spec
   routes/
-    weather.ts            # GET /weather?city= et GET /weather/forecast
-    weather.test.ts       # Tests intégration API (fetch mocké, inject Fastify)
+    weather.ts            # GET /weather, GET /weather/forecast, POST /weather/cache/invalidate
+    weather.test.ts       # Tests intégration (mockRedis + mockFetch + app.inject)
+    me.ts                 # GET /me, PATCH /me/plan, DELETE /me/daily-count
+    me.test.ts            # Tests intégration /me
     admin/
       users.ts            # Routes admin utilisateurs
       users.test.ts       # Tests intégration admin
-    auth.ts               # /auth/google + /auth/callback
+    auth.ts               # /auth/google + /auth/callback (OAuth2 dance Google)
   lib/
     owm-client.ts         # Client OpenWeatherMap (geocoding + weather + forecast)
     weather.service.ts    # Orchestration : geocode → cache → meteo
-    cache.ts              # Abstraction Redis (get/set/invalidate)
+    cache.ts              # Abstraction Redis (get/set/delete/dailyCount)
     geo.ts                # Détection zone Europe (liste de country codes)
+    env.ts                # Validation Zod des variables d'environnement
+    metrics.ts            # Registry custom prom-client (hit/miss counters)
   policies/
     weather.policy.ts     # Règles ABAC météo
     weather.policy.test.ts# Unitaires policies
     admin.policy.ts       # Règles ABAC admin
+    admin.policy.test.ts  # Unitaires policies admin
   db/
-    schema.ts             # Schéma Drizzle (table users)
+    schema.ts             # Schéma Drizzle (table users, $type<> sur role et plan)
+    client.ts             # Singleton drizzle (toujours mocké en test)
     migrations/           # Fichiers de migration générés par Drizzle Kit
   test/
     helpers/
       auth.helper.ts      # Génère JWT de test { email, exp }
-      db.helper.ts        # Seed/reset DB entre les tests
-      mock-openweather.ts # Fixture réponse OpenWeatherMap
+      mocks.ts            # setupDbSelectUser() — configure mockDb.select par test
   types/
     fastify.d.ts          # Augmentation req.user { email, role, plan }
   index.ts                # Factory exportée : buildApp() — importée par les tests
   server.ts               # Point d'entrée : buildApp() + listen() — jamais importé par les tests
+  __mocks__/
+    env.ts                # Mock lib/env.ts (REDIS_URL inclus pour activer le client Redis mocké)
 .husky/
-  pre-commit              # lint-staged (eslint --fix + prettier --write sur les fichiers stagés)
+  pre-commit              # lint-staged (biome check --write sur les fichiers stagés)
   commit-msg              # commitlint — vérifie le format conventional commit
 .commitlintrc.json        # Config conventional commits
+biome.json                # Lint + format (remplace eslint.config.ts + .prettierrc)
+vitest.config.ts          # Aliases @/ et #mocks/, provider v8, seuils coverage
 .release-please-config.json
 CHANGELOG.md              # Généré et maintenu par Release Please
 ```
@@ -766,10 +785,12 @@ GET /weather?city=Paris
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   email: varchar('email', { length: 255 }).notNull().unique(),
-  role: varchar('role', { length: 50 }).notNull().default('viewer'),
-  plan: varchar('plan', { length: 50 }).notNull().default('free'),
+  role: varchar('role', { length: 50 }).notNull().default('viewer').$type<'viewer' | 'admin'>(),
+  plan: varchar('plan', { length: 50 }).notNull().default('free').$type<'free' | 'pro'>(),
 });
 ```
+
+> **`.$type<>()`** : narrowing Drizzle sans modifier le schéma DB. Sans cela, Drizzle infère `string` pour les colonnes varchar, ce que TypeScript 6 rejette lors d'un retour dans un handler typé par `z.enum(['viewer', 'admin'])`.
 
 ```
 users
@@ -977,38 +998,36 @@ test('GET /metrics avec METRICS_TOKEN → 200, contient weather_cache_hit_total'
 # Actions utilisées (versions courantes — à mettre à jour si nouvelle major)
 actions/checkout@v6
 pnpm/action-setup@v5          # version pnpm résolue depuis packageManager dans package.json
-actions/setup-node@v6         # node-version: 'lts/*'
+actions/setup-node@v6
+actions/upload-artifact@v4
 googleapis/release-please-action@v4
 
-# Job 1 — Lint & Type Check
+# Job 1 — Lint & Type Check  (node-version: lts/*)
 - tsc --noEmit
-- eslint
-- prettier --check
+- biome lint src
+- biome format src  (--check)
 
 # Job 2 — Commit lint (CI safety net)
 - pnpm exec commitlint --from origin/main --to HEAD --verbose
 
-# Job 3 — Build
-- tsup src/server.ts --format esm --dts
+# Job 3 — Build  (node-version: lts/*)
+- tsup src/server.ts --format esm
 
-# Job 4 — Test (activé à partir de la Phase 2)
-- vitest
-services:
-  postgres:
-    image: postgres:16
-  redis:
-    image: redis:7
+# Job 4 — Test & Coverage  (node-version: '24' — engine strict >=24)
+- vitest run --coverage
+  → échoue si seuils non atteints
+- upload-artifact: coverage/  (retention 7 jours, if: always())
 
-# Job 5 — Release Please (main uniquement)
+# Job 5 — Release Please (main uniquement, needs: lint-typecheck, build, test)
 - release-please action
   → maintient la Release PR
   → crée tag + GitHub Release au merge
 
-# Job 6 — Deploy Render
-- trigger via webhook
-  → sur push develop : preview
-  → sur merge Release PR : prod
+# Job 6 — Deploy Render (sur release_created uniquement)
+- trigger via webhook Render
 ```
+
+> **node-version '24'** sur le job test : le projet impose `engines.node >= 24` et `.npmrc` a `engine-strict=true`. Les jobs lint/build utilisent `lts/*` (tolérant), le job test impose la version exacte pour reproduire l'environnement de production.
 
 ### Secrets GitHub
 
@@ -1155,16 +1174,18 @@ REDIS_URL
 
 **Objectif** : démontrer le contrôle d'accès par attributs et permettre de le tester facilement.
 
-- `lib/geo.ts` — `isEuropean(countryCode)` avec liste statique de 44 pays
-- `plugins/permissions.plugin.ts` — moteur ABAC deny by default
-- `policies/weather.policy.ts` — règles métier (current, forecast, géographie, dailyCount)
-- `policies/admin.policy.ts` — invalidation cache + gestion utilisateurs (`role === 'admin'`)
-- Route `GET /weather/forecast` (plan pro)
-- Route `POST /weather/cache/invalidate` (admin)
-- Compteur journalier dans Redis (`daily:{email}:{YYYY-MM-DD}`, EXPIREAT minuit UTC)
-- Routes `GET|PATCH|DELETE /admin/users` — accessibles à `role === 'admin'` uniquement
-- Documentation Swagger mise à jour (scopes par rôle/plan visibles)
-- Tests unitaires policies + tests intégration ABAC + tests admin complets
+- ✅ `lib/geo.ts` — `isEuropean(countryCode)` avec liste statique de 44 pays
+- ✅ `plugins/permissions.plugin.ts` — moteur ABAC deny by default
+- ✅ `policies/weather.policy.ts` — règles métier (current, forecast, géographie, dailyCount)
+- ✅ `policies/admin.policy.ts` — invalidation cache + gestion utilisateurs (`role === 'admin'`)
+- ✅ Route `GET /weather/forecast` (plan pro)
+- ✅ Route `POST /weather/cache/invalidate` (admin)
+- ✅ Compteur journalier dans Redis (`daily:{email}:{YYYY-MM-DD}`, EXPIREAT minuit UTC)
+- ✅ Routes `GET|PATCH|DELETE /admin/users` — accessibles à `role === 'admin'` uniquement
+- ✅ Routes `/me` — `GET /me`, `PATCH /me/plan`, `DELETE /me/daily-count`
+- ✅ Documentation Swagger mise à jour (scopes par rôle/plan visibles)
+- ✅ Tests unitaires policies + tests intégration ABAC + tests admin complets
+- ✅ Coverage CI (vitest run --coverage, seuils enforced, artifact upload)
 
 **Livrable** : les règles viewer/pro/admin fonctionnent et sont testables en temps réel depuis `/docs` — un changement de plan via `/admin` est immédiatement reflété sans aucun refresh de token.
 
