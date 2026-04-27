@@ -24,6 +24,6 @@
       }
     }
   },
-  "postCreateCommand": "corepack enable && pnpm install && pnpm db:migrate",
-  "forwardPorts": [3000]
+  "postCreateCommand": "sudo corepack enable && pnpm install && pnpm db:migrate",
+  "forwardPorts": [3000, 5173]
 }
