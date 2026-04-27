@@ -41,13 +41,4 @@ export const swaggerPlugin = fp(async (fastify: FastifyInstance, options: { vers
       persistAuthorization: true,
     },
   });
-
-  // Workaround for @fastify/swagger-ui v5 bug: @fastify/static is registered inside the
-  // /docs scope but its URL-stripping logic only checks for '/static' (not '/docs/static').
-  // Stripping the route prefix from req.raw.url before the handler runs fixes this.
-  fastify.addHook('preHandler', async (request) => {
-    if (request.raw.url?.startsWith(`${SWAGGER_ROUTE_PREFIX}/static/`)) {
-      request.raw.url = request.raw.url.slice(SWAGGER_ROUTE_PREFIX.length);
-    }
-  });
 });
