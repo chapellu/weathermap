@@ -11,13 +11,13 @@ import {
 } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { closeCache } from '@/lib/cache.js';
+import { env } from '@/lib/env.js';
 import { authPlugin } from '@/plugins/auth.plugin.js';
 import { loggerPlugin } from '@/plugins/logger.plugin.js';
 import { metricsPlugin } from '@/plugins/metrics.plugin.js';
 import { permissionsPlugin } from '@/plugins/permissions.plugin.js';
 import { swaggerPlugin } from '@/plugins/swagger.plugin.js';
 import { adminUsersRoutes } from '@/routes/admin/users.js';
-import { authRoutes } from '@/routes/auth.js';
 import { meRoutes } from '@/routes/me.js';
 import { weatherRoutes } from '@/routes/weather.js';
 
@@ -31,7 +31,7 @@ export async function buildApp() {
     trustProxy: true,
     logger: {
       transport:
-        process.env.NODE_ENV === 'production'
+        env.NODE_ENV === 'production'
           ? { target: 'pino-logfmt' }
           : {
               target: 'pino-pretty',
@@ -47,10 +47,10 @@ export async function buildApp() {
   await fastify.register(fastifyCookie);
   await fastify.register(loggerPlugin);
   await fastify.register(swaggerPlugin, { version });
-  await fastify.register(authPlugin);
+  await fastify.register(authPlugin, { secret: env.JWT_SECRET });
   await fastify.register(permissionsPlugin);
   await fastify.register(metricsPlugin);
-  await fastify.register(authRoutes);
+
   await fastify.register(weatherRoutes);
   await fastify.register(meRoutes);
   await fastify.register(adminUsersRoutes);
