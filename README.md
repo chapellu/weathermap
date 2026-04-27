@@ -222,6 +222,15 @@ Push / PR → main ou develop
 
 Le déploiement ne se déclenche que sur une release effective (tag créé), pas à chaque push sur `main`.
 
+### Mises à jour automatiques (Dependabot)
+
+Dependabot analyse le dépôt chaque semaine et ouvre des PRs de mise à jour pour :
+
+- **GitHub Actions** — les actions sont épinglées à un commit SHA précis (ex : `actions/checkout@de0fac2e...`) pour éviter qu'un tag mutable (`@v4`) ne pointe vers du code modifié. Dependabot détecte les nouvelles versions et met à jour le SHA + le commentaire de version.
+- **npm (pnpm)** — les dépendances `package.json` sont regroupées en deux PRs distinctes : une pour les dépendances de production, une pour les dépendances de développement.
+
+Les PRs passent par le pipeline CI complet avant d'être mergées.
+
 ### Qualité locale
 
 ```
@@ -288,8 +297,7 @@ Avec ces données, les dashboards Grafana prioritaires seraient :
 
 **Sécurité :**
 
-- Pas d'analyses des vulnérabilités (Snyk, npm audit) — les dépendances ne sont pas régulièrement vérifiées
-- Pas de mise à jour automatique des dépendances (Dependabot) — les updates sont manuelles
+- Pas d'analyses des vulnérabilités (Snyk, npm audit) en dehors des PRs Dependabot
 - Pas de backup
 - Pas de liste de révocation de tokens (JTI blacklist) — impossible d'invalider un token compromis avant expiration
 - Pas de rate limiting au niveau réseau (WAF, nginx `limit_req`) — seule la limite applicative quotidienne existe
