@@ -12,6 +12,7 @@ import {
 } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { closeCache } from '@/lib/cache.js';
+import { env } from '@/lib/env.js';
 import { authPlugin } from '@/plugins/auth.plugin.js';
 import { loggerPlugin } from '@/plugins/logger.plugin.js';
 import { metricsPlugin } from '@/plugins/metrics.plugin.js';
@@ -32,7 +33,7 @@ export async function buildApp() {
     trustProxy: true,
     logger: {
       transport:
-        process.env.NODE_ENV === 'production'
+        env.NODE_ENV === 'production'
           ? { target: 'pino-logfmt' }
           : {
               target: 'pino-pretty',
