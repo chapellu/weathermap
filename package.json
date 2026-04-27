@@ -30,6 +30,11 @@
   "lint-staged": {
     "*.{ts,json,yml,yaml,md}": ["biome check --write --no-errors-on-unmatched"]
   },
+  "pnpm": {
+    "overrides": {
+      "esbuild": ">=0.25.0"
+    }
+  },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/sensible": "^6.0.4",
@@ -51,11 +56,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
-    "pnpm": {
-      "overrides": {
-        "esbuild": ">=0.25.0"
-      }
-    },
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^25.6.0",
