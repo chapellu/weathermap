@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import { OAuth2Client } from 'google-auth-library';
-import { jwtVerify, SignJWT } from 'joste';
+import { jwtVerify, SignJWT } from 'jose';
 import { db } from '@/db/client.js';
 import { users } from '@/db/schema.js';
 import { config } from '@/lib/config.js';
