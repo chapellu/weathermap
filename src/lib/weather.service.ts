@@ -7,14 +7,15 @@ import {
   getDailyCount,
   incrementDailyCount,
 } from '@/lib/cache.js';
+import { config } from '@/lib/config.js';
 import { isEuropean } from '@/lib/geo.js';
 import { cacheHitCounter, cacheMissCounter } from '@/lib/metrics.js';
 import type { CurrentWeather, ForecastResponse, GeocodingResult } from './owm-client.js';
 import { fetchCurrentWeather, fetchForecast, geocodeCity } from './owm-client.js';
 
-export const CACHE_TTL_FORECAST = 60 * 60; // 1h in seconds
+export const CACHE_TTL_FORECAST = config.cache.ttlForecast;
 
-export const DAILY_REQUEST_LIMIT = 10;
+export const DAILY_REQUEST_LIMIT = config.rateLimit.dailyRequestLimit;
 
 export class GeoRestrictedError extends Error {
   constructor() {

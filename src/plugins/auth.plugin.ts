@@ -5,9 +5,8 @@ import { OAuth2Client } from 'google-auth-library';
 import { jwtVerify, SignJWT } from 'joste';
 import { db } from '@/db/client.js';
 import { users } from '@/db/schema.js';
+import { config } from '@/lib/config.js';
 import { env } from '@/lib/env.js';
-
-const SCOPES = ['openid', 'email'];
 
 export interface AuthPluginOptions {
   secret: string;
@@ -18,8 +17,8 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, opts) => {
 
   fastify.decorate('signToken', async (email: string): Promise<string> => {
     return new SignJWT({ email })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('1h')
+      .setProtectedHeader({ alg: config.jwt.algorithm })
+      .setExpirationTime(config.jwt.expirationTime)
       .sign(secret);
   });
 
@@ -77,7 +76,10 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, opts) => {
           env.GOOGLE_CLIENT_SECRET,
           redirectUri,
         );
-        const authUrl = client.generateAuthUrl({ access_type: 'online', scope: SCOPES });
+        const authUrl = client.generateAuthUrl({
+          access_type: 'online',
+          scope: [...config.oauth.scopes],
+        });
         return reply.redirect(authUrl);
       },
     ),
@@ -130,7 +132,7 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, opts) => {
         secure: env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-        maxAge: 3600,
+        maxAge: config.cookie.maxAge,
       });
 
       return reply.redirect('/');

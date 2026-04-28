@@ -8,6 +8,7 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   JWT_SECRET: z.string().min(32),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);
