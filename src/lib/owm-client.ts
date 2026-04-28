@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { config } from '@/lib/config.js';
 import { env } from '@/lib/env.js';
 
 export class OwmCityNotFoundError extends Error {
@@ -59,7 +60,7 @@ export async function fetchCurrentWeather(coords: {
   lat: number;
   lon: number;
 }): Promise<CurrentWeather> {
-  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${coords.lat}&lon=${coords.lon}&units=metric&lang=fr&appid=${env.OPENWEATHER_API_KEY}`;
+  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${coords.lat}&lon=${coords.lon}&units=${config.owm.units}&lang=${config.owm.lang}&appid=${env.OPENWEATHER_API_KEY}`;
   const response = await fetch(url);
 
   if (!response.ok) {
@@ -89,7 +90,7 @@ export async function fetchForecast(coords: {
   lat: number;
   lon: number;
 }): Promise<ForecastResponse> {
-  const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${coords.lat}&lon=${coords.lon}&units=metric&lang=fr&appid=${env.OPENWEATHER_API_KEY}`;
+  const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${coords.lat}&lon=${coords.lon}&units=${config.owm.units}&lang=${config.owm.lang}&appid=${env.OPENWEATHER_API_KEY}`;
   const response = await fetch(url);
 
   if (!response.ok) {

@@ -1,18 +1,24 @@
 import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
+import { OAuth2Client } from 'google-auth-library';
 import { jwtVerify, SignJWT } from 'jose';
 import { db } from '@/db/client.js';
 import { users } from '@/db/schema.js';
+import { config } from '@/lib/config.js';
 import { env } from '@/lib/env.js';
 
-const secret = new TextEncoder().encode(env.JWT_SECRET);
+export interface AuthPluginOptions {
+  secret: string;
+}
 
-const plugin: FastifyPluginAsync = async (fastify) => {
+const plugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, opts) => {
+  const secret = new TextEncoder().encode(opts.secret);
+
   fastify.decorate('signToken', async (email: string): Promise<string> => {
     return new SignJWT({ email })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('1h')
+      .setProtectedHeader({ alg: config.jwt.algorithm })
+      .setExpirationTime(config.jwt.expirationTime)
       .sign(secret);
   });
 
@@ -53,6 +59,79 @@ const plugin: FastifyPluginAsync = async (fastify) => {
       } catch {
         await reply.status(401).send({ message: 'Unauthorized' });
       }
+    },
+  );
+
+  fastify.get(
+    '/auth/google',
+    {
+      schema: {
+        description: 'Redirect to Google OAuth2 consent screen',
+        tags: ['Auth'],
+      },
+    },
+    async (req, reply) => {
+      const redirectUri = `${req.protocol}://${String(req.headers.host)}/auth/callback`;
+      const client = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri);
+      const authUrl = client.generateAuthUrl({
+        access_type: 'online',
+        scope: [...config.oauth.scopes],
+      });
+      return reply.redirect(authUrl);
+    },
+  );
+
+  fastify.get(
+    '/auth/callback',
+    {
+      schema: {
+        description: 'Google OAuth2 callback — exchanges code for JWT',
+        tags: ['Auth'],
+      },
+    },
+    async (req, reply) => {
+      const { code } = req.query as { code?: string };
+
+      if (!code) {
+        throw fastify.httpErrors.badRequest('Missing OAuth2 code');
+      }
+
+      const redirectUri = `${req.protocol}://${String(req.headers.host)}/auth/callback`;
+      const client = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri);
+
+      const { tokens } = await client.getToken(code);
+      const idToken = tokens.id_token;
+
+      if (!idToken) {
+        throw fastify.httpErrors.badGateway('No id_token returned by Google');
+      }
+
+      const ticket = await client.verifyIdToken({ idToken, audience: env.GOOGLE_CLIENT_ID });
+      const email = ticket.getPayload()?.email;
+
+      if (!email) {
+        throw fastify.httpErrors.badGateway('No email in Google token payload');
+      }
+
+      await db.insert(users).values({ email }).onConflictDoNothing({ target: users.email });
+
+      const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+      if (!user) {
+        throw fastify.httpErrors.internalServerError('Failed to upsert user');
+      }
+
+      const token = await fastify.signToken(email);
+
+      reply.setCookie('token', token, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: config.cookie.maxAge,
+      });
+
+      return reply.redirect('/');
     },
   );
 };

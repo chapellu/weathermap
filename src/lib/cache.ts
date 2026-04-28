@@ -1,14 +1,15 @@
 import Redis from 'ioredis';
+import { config } from '@/lib/config.js';
 import { env } from '@/lib/env.js';
 
-export const CACHE_TTL_GEO = 24 * 60 * 60; // 24h in seconds
-export const CACHE_TTL_WEATHER = 10 * 60; // 10min in seconds
+export const CACHE_TTL_GEO = config.cache.ttlGeo;
+export const CACHE_TTL_WEATHER = config.cache.ttlWeather;
 
 let redisClient: Redis | null = null;
 
 function getClient(): Redis | null {
   if (!env.REDIS_URL) return null;
-  redisClient ??= new Redis(env.REDIS_URL, { maxRetriesPerRequest: 1 });
+  redisClient ??= new Redis(env.REDIS_URL, { maxRetriesPerRequest: config.cache.redisMaxRetries });
   return redisClient;
 }
 
