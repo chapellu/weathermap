@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.1](https://github.com/chapellu/weathermap/compare/weatherapp-v0.8.0...weatherapp-v0.8.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* indentation errors ([965ef06](https://github.com/chapellu/weathermap/commit/965ef069cc48ef3ebe4bb76770e7efec7da1c405))
+* override esbuild version to fix security issue ([f5b7aba](https://github.com/chapellu/weathermap/commit/f5b7abafbff092f9727041498b7962a1328ab798))
+* regroup all configuration into a config file ([6d5ee71](https://github.com/chapellu/weathermap/commit/6d5ee71e6faf8766728de0336162148fda41fc49))
+* remove hack ([a003a98](https://github.com/chapellu/weathermap/commit/a003a98badb1818ca6fd188c8ba903957831ea48))
+* remove hack ([17455b9](https://github.com/chapellu/weathermap/commit/17455b90e3c09575e4518fbf25fefe6479d69f15))
+* typo in imports ([8853b46](https://github.com/chapellu/weathermap/commit/8853b4670b57d979947fee9b2f1f064908e11b0b))
+
 ## [0.8.0](https://github.com/chapellu/weathermap/compare/weatherapp-v0.7.2...weatherapp-v0.8.0) (2026-04-17)
 
 
