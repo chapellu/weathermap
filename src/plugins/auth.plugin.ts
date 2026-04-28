@@ -60,29 +60,25 @@ const plugin: FastifyPluginAsync<AuthPluginOptions> = async (fastify, opts) => {
         await reply.status(401).send({ message: 'Unauthorized' });
       }
     },
+  );
 
-    fastify.get(
-      '/auth/google',
-      {
-        schema: {
-          description: 'Redirect to Google OAuth2 consent screen',
-          tags: ['Auth'],
-        },
+  fastify.get(
+    '/auth/google',
+    {
+      schema: {
+        description: 'Redirect to Google OAuth2 consent screen',
+        tags: ['Auth'],
       },
-      async (req, reply) => {
-        const redirectUri = `${req.protocol}://${String(req.headers.host)}/auth/callback`;
-        const client = new OAuth2Client(
-          env.GOOGLE_CLIENT_ID,
-          env.GOOGLE_CLIENT_SECRET,
-          redirectUri,
-        );
-        const authUrl = client.generateAuthUrl({
-          access_type: 'online',
-          scope: [...config.oauth.scopes],
-        });
-        return reply.redirect(authUrl);
-      },
-    ),
+    },
+    async (req, reply) => {
+      const redirectUri = `${req.protocol}://${String(req.headers.host)}/auth/callback`;
+      const client = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri);
+      const authUrl = client.generateAuthUrl({
+        access_type: 'online',
+        scope: [...config.oauth.scopes],
+      });
+      return reply.redirect(authUrl);
+    },
   );
 
   fastify.get(
