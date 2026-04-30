@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fastifyCookie from '@fastify/cookie';
 import sensible from '@fastify/sensible';
+import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import {
   serializerCompiler,
@@ -45,6 +46,12 @@ export async function buildApp() {
 
   await fastify.register(sensible);
   await fastify.register(fastifyCookie);
+
+  if (env.NODE_ENV === 'production') {
+    const frontendDist = resolve(__dirname, '..', 'frontend', 'dist');
+    await fastify.register(fastifyStatic, { root: frontendDist, prefix: '/' });
+  }
+
   await fastify.register(loggerPlugin);
   await fastify.register(swaggerPlugin, { version });
   await fastify.register(authPlugin, { secret: env.JWT_SECRET });

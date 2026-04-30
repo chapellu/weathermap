@@ -28,9 +28,12 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,json,yml,yaml,md}": [
-      "biome check --write --no-errors-on-unmatched"
-    ]
+    "*.{ts,json,yml,yaml,md}": ["biome check --write --no-errors-on-unmatched"]
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild": ">=0.25.0"
+    }
   },
   "pnpm": {
     "overrides": {
@@ -40,6 +43,7 @@
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/sensible": "^6.0.4",
+    "@fastify/static": "^9.1.2",
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.6",
     "drizzle-orm": "^0.45.2",
